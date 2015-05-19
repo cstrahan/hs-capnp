@@ -1,0 +1,26 @@
+QUESTIONS
+---------
+- how should default values work for non-scalar types?
+  - Presently, I pass around around (Ptr WirePtr), but the only way that's sound
+    is if I perform a copy into a new segment / bytestring.
+    Perhaps I should pass around a segment (or arena?)
+  - How does this work in libcapnp? My guess is that code generator puts the
+    default values in statically allocated memory.
+    - I need to inspect the default values in a CodeGeneratorRequest and see
+      what I can make work.
+
+TODO
+----
+- complete data structures and core layout API.
+- write code generator
+- replace the current schema code, completing the bootstrap
+- clean-up choice of integral types (remove uncessary use of `fromIntegral`)
+- profile / optimize
+
+DONE
+----
+- create sample messages
+  - inspect
+  - make sure the offsets match what I would expect
+  - write tests
+

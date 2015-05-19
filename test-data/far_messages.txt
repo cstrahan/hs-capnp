@@ -1,0 +1,65 @@
+-------------------------------
+-- (non-double) far-ptr example
+
+01 00 00 00 -- num segments (2)
+01 00 00 00 -- seg0 len
+05 00 00 00 -- seg1 len
+00 00 00 00 -- padding to word boundary
+
+-- seg0 --
+
+12 00 00 00 -- far-ptr, offset (2)
+01 00 00 00 -- target segment
+
+-- seg1 --
+
+00 00 00 00 -- padding, to test out offsets
+00 00 00 00 -- ...
+00 00 00 00 -- padding, to test out offsets
+00 00 00 00 -- ...
+04 00 00 00 -- struct, offset (1)
+01 00 00 00 -- one data word
+00 00 00 00 -- padding, to test out offsets
+00 00 00 00 -- ...
+44 33 22 11 -- UInt32 (0x11223344)
+00 00 00 00 -- padding to word boundary
+
+
+-------------------------------
+-- double far-ptr example
+
+02 00 00 00 -- num segments (3)
+01 00 00 00 -- seg0 len
+05 00 00 00 -- seg1 len
+05 00 00 00 -- seg2 len
+
+-- seg0 --
+
+1E 00 00 00 -- double far-ptr, offset (3)
+01 00 00 00 -- target segment
+
+-- seg1 --
+
+00 00 00 00 -- padding, to test out offsets
+00 00 00 00 -- ...
+00 00 00 00 -- padding, to test out offsets
+00 00 00 00 -- ...
+00 00 00 00 -- padding, to test out offsets
+00 00 00 00 -- ...
+22 00 00 00 -- far-ptr, offset (4)
+02 00 00 00 -- target segment
+00 00 00 00 -- tag, part(1/2) - struct, offset (0)
+01 00 00 00 -- tag, part(2/2) - one data word
+
+-- seg2 --
+
+00 00 00 00 -- padding, to test out offsets
+00 00 00 00 -- ...
+00 00 00 00 -- padding, to test out offsets
+00 00 00 00 -- ...
+00 00 00 00 -- padding, to test out offsets
+00 00 00 00 -- ...
+00 00 00 00 -- padding, to test out offsets
+00 00 00 00 -- ...
+44 33 22 11 -- UInt32 (0x11223344)
+00 00 00 00 -- padding to word boundary

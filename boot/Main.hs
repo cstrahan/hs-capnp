@@ -18,4 +18,6 @@ import           Data.CapnProto.Parser
 import           Data.CapnProto.Schema
 
 main :: IO ()
-main = putStrLn . ppShow $ schema
+main =
+    mapM_ (putStrLn . nodeDisplayName) $ schema
+    -- putStrLn . ppShow $ schema
