@@ -1,0 +1,7 @@
+:set -package pretty-show
+:set -package hscolour
+
+:set -fwarn-unused-binds -fwarn-unused-imports
+:set -isrc
+:set -icapnpc-hs
+:load Main

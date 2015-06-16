@@ -35,7 +35,8 @@ readSegmentTable path = do
 --------------------------------------------------------------------------------
 
 -- TODO
--- * followFars
+-- * mapElements et al
+--   * when empty
 
 hex8 :: Word8 -> String
 hex8 = printf "%02x"
@@ -111,6 +112,24 @@ spec = do
             numDefault <- L.getField structDefault 0
             numDefault `shouldBe` (0 :: Word32)
 
+        it "with 3 lists" $ do
+            struct <- readStruct "test-data/three_lists"
+
+            list0 <- L.getField struct 0
+            list1 <- L.getField struct 1
+            list2 <- L.getField struct 2
+
+            elem0 <- L.getElement list0 0 :: IO Word32
+            elem1 <- L.getElement list1 0 :: IO Word32
+            elem2 <- L.getElement list1 1 :: IO Word32
+            elem3 <- L.getElement list2 0 :: IO Word32
+            elem4 <- L.getElement list2 1 :: IO Word32
+            elem5 <- L.getElement list2 2 :: IO Word32
+
+            [elem0] `shouldBe` [0]
+            [elem1, elem2] `shouldBe` [1, 2]
+            [elem3, elem4, elem5] `shouldBe` [3, 4, 5]
+
         it "far pointer" $ do
             struct <- readStruct "test-data/far_one_uint32"
             num0 <- L.getField struct 0
@@ -132,6 +151,25 @@ spec = do
             text <- L.getField struct 0 :: IO L.DataReader
 
             L.dataReaderData text `shouldBe` ("This is some data." :: BS.ByteString)
+
+        it "mixed" $ do
+            struct <- readStruct "test-data/mixed"
+            num0 <- L.getField struct 0 :: IO Word32
+
+            struct0 <- L.getField struct 0 :: IO L.StructReader
+            num1 <- L.getField struct0 0 :: IO Word32
+
+            list0 <- L.getField struct 1
+            num3 <- L.getElement list0 0
+            num4 <- L.getElement list0 1
+            num5 <- L.getElement list0 2
+
+            [num0, num1, num3, num4, num5] `shouldBe` [12345, 67890, 20304, 30405, 50607]
+
+        it "unininitialized list of uint32" $ do
+            struct <- readStruct "test-data/uninitialized_list_of_uint32"
+            list <- L.getField struct 0 :: IO (L.ListReader Word32)
+            L.listLength list `shouldBe` 0
 
         describe "list of" $ do
             it "bool" $ do
@@ -169,3 +207,22 @@ spec = do
 
                 let expected = [0x11223344, 0x55667788, 0x99AABBCC] :: [Word32]
                 nums `shouldBe` expected
+
+            it "list of uint32" $ do
+                struct <- readStruct "test-data/list_of_list_of_uint32"
+
+                lists <- L.getField struct 0
+                list0 <- L.getElement lists 0
+                list1 <- L.getElement lists 1
+                list2 <- L.getElement lists 2
+
+                elem0 <- L.getElement list0 0 :: IO Word32
+                elem1 <- L.getElement list1 0 :: IO Word32
+                elem2 <- L.getElement list1 1 :: IO Word32
+                elem3 <- L.getElement list2 0 :: IO Word32
+                elem4 <- L.getElement list2 1 :: IO Word32
+                elem5 <- L.getElement list2 2 :: IO Word32
+
+                [elem0] `shouldBe` [0]
+                [elem1, elem2] `shouldBe` [1, 2]
+                [elem3, elem4, elem5] `shouldBe` [3, 4, 5]

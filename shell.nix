@@ -1,5 +1,6 @@
 let
   pkgs = import <nixpkgs> { };
+  /* inherit (pkgs.haskell.lib) withHoogle; */
 
   ghc = with pkgs.haskell-ng.lib; pkgs.haskell-ng.packages.ghc7101.override {
     overrides = self: super: {
@@ -18,18 +19,13 @@ let
         src = pkgs.fetchFromGitHub {
           owner = "DanielG";
           repo = "ghc-mod";
-          rev = "247e4e0e7616fe1fecc68fdcf80d6249ac4cee4f";
-          sha256 = "02i6z0navp5a73nk9k46rh01hl5r10s6gzq1c6fmcrdrzjq6nwv4";
+          rev = "1e381a12a9532eb9d7f38051674d210af7ce1ab7";
+          sha256 = "1f59bfisvyb0c5i507p60436syjidcnrbylfhr2lwfi6ajb698q6";
         };
         buildDepends = drv.buildDepends ++ [ self.cabal-helper self.cereal ];
       });
     };
   };
-
-  withHoogle = haskellEnv:
-    ghc.callPackage <nixpkgs/pkgs/development/libraries/haskell/hoogle/local.nix> {
-      packages = haskellEnv.paths;
-    };
 
   ghcPackages = ghc.ghcWithPackages (p: with p; [
     ipprint
@@ -39,12 +35,17 @@ let
     cabal-install
     pretty-show
     cabal2nix
+    ghcid
 
+    split
     aeson
     text
     vector
     hashmap
     unordered-containers
+    haskell-generate
+    haskell-src-exts
+    haskell-src-exts-qq
 
     hspec
   ]);
@@ -56,7 +57,7 @@ with pkgs;
 runCommand "dummy" {
   buildInputs = [
     ghcPackages
-    (withHoogle ghcPackages)
+    /* (withHoogle ghcPackages) */
 
     python27Full
     pythonPackages.pycapnp

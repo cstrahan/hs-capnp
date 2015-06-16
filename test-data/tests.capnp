@@ -92,6 +92,12 @@ struct ThreeStructs {
   field2 @2 :OneUInt32;
 }
 
+struct ThreeLists {
+  field0 @0 :List(UInt32);
+  field1 @1 :List(UInt32);
+  field2 @2 :List(UInt32);
+}
+
 struct ListOfUInt32 {
   field0 @0 :List(UInt32);
 }
@@ -114,4 +120,14 @@ struct OneText {
 
 struct OneData {
   field0 @0 :Data;
+}
+
+struct ListOfListOfUInt32 {
+  field0 @0 :List(List(UInt32));
+}
+
+struct Mixed {
+  field0 @0 :UInt32;
+  field1 @1 :OneUInt32;
+  field3 @2 :List(UInt32);
 }

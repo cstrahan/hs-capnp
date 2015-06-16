@@ -1,30 +1,31 @@
 module Data.CapnProto.Serialize where
 
-import           Control.Monad             (void, when)
-import           Data.ByteString           (ByteString, useAsCStringLen)
-import qualified Data.ByteString           as BS
+import           Control.Monad
+import           Data.ByteString          (useAsCStringLen)
+import qualified Data.ByteString          as BS
 import           Data.ByteString.Internal
 import           Data.Word
-import           Data.Monoid
-import           Foreign.ForeignPtr.Unsafe
-import           Foreign.Storable
 import           Foreign.Ptr
-import           System.IO (openFile, IOMode(..))
-import           System.IO.Unsafe
+import           Foreign.Storable
+import           System.IO                (Handle, IOMode (..), openFile)
 
 import           Data.CapnProto.Arena
-import           Data.CapnProto.Layout as L
+import           Data.CapnProto.Layout    as L
 import           Data.CapnProto.Units
 
 data MessageReader = MessageReader
   { messageReaderArena :: Arena
   }
 
-readFile :: String -> IO MessageReader
-readFile path = do
-    handle <- openFile path ReadMode
-    let get = BS.hGet handle
+readHandle :: Handle -> IO MessageReader
+readHandle handle =
     readMessage get
+  where
+    get = BS.hGet handle
+
+readFile :: String -> IO MessageReader
+readFile path =
+    openFile path ReadMode >>= readHandle
 
 -- TODO: take fn that writes to Ptr, then allocated segments of the appropriate
 -- alignment.

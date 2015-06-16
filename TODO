@@ -1,26 +1,26 @@
 QUESTIONS
 ---------
-- how should default values work for non-scalar types?
-  - Presently, I pass around around (Ptr WirePtr), but the only way that's sound
-    is if I perform a copy into a new segment / bytestring.
-    Perhaps I should pass around a segment (or arena?)
-  - How does this work in libcapnp? My guess is that code generator puts the
-    default values in statically allocated memory.
-    - I need to inspect the default values in a CodeGeneratorRequest and see
-      what I can make work.
 
 TODO
+----
+- legit exceptions
+- support default values
+- clean-up choice of integral types (remove uncessary use of `fromIntegral`)
+- profile / optimize
+- consider using a pretty-printing lib for the code generator
+- support for different allocation patterns:
+  - GC
+  - manual
+  (Data.Pool creates a (Weak (IORef ())) with an attached finalizer to perform
+   cleanup when a Pool is unreachable. Might want to do something similar in
+   Segments.)
+
+DONE
 ----
 - complete data structures and core layout API.
 - write code generator
 - replace the current schema code, completing the bootstrap
-- clean-up choice of integral types (remove uncessary use of `fromIntegral`)
-- profile / optimize
-
-DONE
-----
 - create sample messages
   - inspect
   - make sure the offsets match what I would expect
   - write tests
-

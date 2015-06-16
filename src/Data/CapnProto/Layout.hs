@@ -1,35 +1,44 @@
-{-# LANGUAGE DefaultSignatures #-}
+{-# LANGUAGE DefaultSignatures     #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE FunctionalDependencies #-}
+{-# LANGUAGE TypeFamilies          #-}
 
 module Data.CapnProto.Layout where
 
-import           Control.Applicative
 import           Control.Monad
+import           Control.Monad.ST         (ST, runST)
+import           Data.Array.ST            (MArray, STUArray, newArray,
+                                           readArray)
+import           Data.Array.Unsafe        (castSTUArray)
 import           Data.Bits
-{- import           Data.ByteString          (ByteString (..)) -}
 import qualified Data.ByteString          as BS
+import qualified Data.ByteString.Char8    as BSC
 import qualified Data.ByteString.Internal as BS (fromForeignPtr)
 import           Data.Int
-import           Data.List
 import           Data.Monoid
 import           Data.Word
-import           Foreign.C.String
 import           Foreign.C.Types          (CChar)
 import           Foreign.ForeignPtr
-import           Foreign.Marshal.Array
+import           Foreign.Marshal.Array    hiding (newArray)
 import           Foreign.Ptr
 import           Foreign.Storable
 import           System.IO
 import           Text.Printf
 
 import           Data.CapnProto.Arena
-import           Data.CapnProto.Mask
 import           Data.CapnProto.Units
 
 --------------------------------------------------------------------------------
 
 debug = hPutStrLn stderr
+
+debugStructReader reader = do
+    debug $ "    SR-data/ptrs-diff: "<>show (cast (structReaderPointers reader) `minusPtr` cast (structReaderData reader))
+    debug $ "    SR-data-size     : "<>show (structReaderDataSize reader)
+    debug $ "    SR-ptr-count     : "<>show (structReaderPtrCount reader)
+  where
+    cast p = castPtr p :: Ptr Word8
 
 debugSegment :: SegmentReader -> IO ()
 debugSegment reader = withSegment reader $ \ptr -> do
@@ -51,11 +60,11 @@ data ElementSize =
   deriving (Show, Enum, Eq)
 
 newtype TextReader = TextReader
-  { textReaderData :: BS.ByteString
+  { textReaderData :: Maybe BS.ByteString
   }
 
 newtype DataReader = DataReader
-  { dataReaderData :: BS.ByteString
+  { dataReaderData :: Maybe BS.ByteString
   }
 
 data StructReader = StructReader
@@ -100,7 +109,9 @@ toStructRef ptr = StructRef (fromIntegral (upper32Bits ptr))
 
 --------------------------------------------------------------------------------
 
-data NotInSchema = NotInSchema Word16 deriving (Show)
+class Union a where
+    type UnionTy a :: *
+    which :: a -> IO (UnionTy a)
 
 --------------------------------------------------------------------------------
 
@@ -198,7 +209,14 @@ readDataPointer :: SegmentReader -> Ptr WirePointer -> Ptr Word -> ByteCount32 -
 readDataPointer segment ref defaultValue defaultSize = withSegment segment $ \_ -> do
     pred <- wirePtrRefIsNull ref
     if pred
-      then fail "Data.CapnProto.Layout.readDataPointer: not implemented"
+      then do
+          pred <- wirePtrRefIsNull (castPtr defaultValue)
+          if pred
+            then return $ DataReader Nothing
+            else do
+                p <- newForeignPtr_ defaultValue
+                let bs = BS.fromForeignPtr (castForeignPtr p) 0 (fromIntegral defaultSize)
+                return $ DataReader $ Just $ bs
       else do
           (wirePtr, content, segment) <- followFars ref segment
           let listRef = toListRef wirePtr
@@ -211,7 +229,7 @@ readDataPointer segment ref defaultValue defaultSize = withSegment segment $ \_ 
           -- XXX bounds check
 
           let bs = BS.fromForeignPtr (segmentReaderForeignPtr segment) (content `minusPtr` unsafeSegmentReaderPtr segment) (fromIntegral size)
-          return $ DataReader bs
+          return $ DataReader $ Just bs
 
 getText :: PointerReader -> Ptr Word -> ByteCount32 -> IO TextReader
 getText reader =
@@ -221,7 +239,14 @@ readTextPointer :: SegmentReader -> Ptr WirePointer -> Ptr Word -> ByteCount32 -
 readTextPointer segment ref defaultValue defaultSize = withSegment segment $ \sptr -> do
     pred <- wirePtrRefIsNull ref
     if pred
-      then fail "Data.CapnProto.Layout.readTextPointer: not implemented"
+      then do
+          pred <- wirePtrRefIsNull (castPtr defaultValue)
+          if pred
+            then return $ TextReader Nothing
+            else do
+                p <- newForeignPtr_ defaultValue
+                let bs = BS.fromForeignPtr (castForeignPtr p) 0 (fromIntegral defaultSize)
+                return $ TextReader $ Just $ bs
       else do
           (wirePtr, content, segment) <- followFars ref segment
           let listRef = toListRef wirePtr
@@ -244,15 +269,16 @@ readTextPointer segment ref defaultValue defaultSize = withSegment segment $ \sp
 
           let bs = BS.fromForeignPtr (segmentReaderForeignPtr segment) (content `minusPtr` unsafeSegmentReaderPtr segment) (fromIntegral size - 1)
 
-          return $ TextReader bs
+          return $ TextReader $ Just bs
 
 getList :: PointerReader -> ElementSize -> Ptr Word -> IO UntypedListReader
 getList reader expectedSize =
     readListPointer (pointerReaderSegment reader) expectedSize (pointerReaderData reader)
 
 readListPointer :: SegmentReader -> ElementSize -> Ptr WirePointer -> Ptr Word -> IO UntypedListReader
-readListPointer segment expectedSize ref defaultValue = withSegment segment $ \_ ->
-    if isNull ref
+readListPointer segment expectedSize ref defaultValue = withSegment segment $ \_ -> do
+    pred <- wirePtrRefIsNull ref
+    if pred
       then do
           pred <- wirePtrRefIsNull $ castPtr defaultValue
           if pred
@@ -261,7 +287,8 @@ readListPointer segment expectedSize ref defaultValue = withSegment segment $ \_
       else do
           (wirePtr, content, segment) <- followFars ref segment
           when (wirePointerKind wirePtr /= List) $
-            fail "Message contains non-list pointer where list pointer was expected"
+            {- fail "Message contains non-list pointer where list pointer was expected" -}
+            fail $ "Message contains non-list pointer where list pointer was expected: "<>show (wirePointerKind wirePtr)
           let listRef = toListRef wirePtr
               elemSize = listRefElementSize listRef
           case elemSize of
@@ -354,7 +381,7 @@ readStructPointer segment ref defaultValue = withSegment segment $ \_ ->
 
 wirePtrRefIsNull :: Ptr WirePointer -> IO Bool
 wirePtrRefIsNull ref =
-    if isNull ref
+    if ref == nullPtr
       then return True
       else do
           wirePtr <- peek ref
@@ -430,13 +457,28 @@ instance FromStructReader StructReader where
 
 
 class StructField a where
+    type DefaultTy a :: *
+    type DefaultTy a = a
+
     getField :: StructReader -> ElementCount -> IO a
+    getField' :: StructReader -> ElementCount -> DefaultTy a -> IO a
 
     default getField :: (Storable a, Zero a) => StructReader -> ElementCount -> IO a
     getField = getDataField
 
+    default getField' :: (Storable a, Zero a, Bits a, DefaultTy a ~ a) => StructReader -> ElementCount -> DefaultTy a -> IO a
+    getField' struct index def = fmap (`xor` def) (getField struct index)
+
+instance StructField () where
+    getField _ _ = return ()
+    getField' _ _ _ = return ()
+
 instance StructField Bool where
+    type DefaultTy Bool = Bool
     getField = getBoolField
+    getField' struct index def = do
+        val <- getField struct index
+        return $ (val || def) && (not (val && def))
 
 instance StructField Word8
 instance StructField Word16
@@ -446,43 +488,54 @@ instance StructField Int8
 instance StructField Int16
 instance StructField Int32
 instance StructField Int64
-instance StructField Float
-instance StructField Double
+
+instance StructField Float where
+    type DefaultTy Float = Word32
+    getField' struct index def = do
+        val <- getField struct index
+        return $ wordToFloat (floatToWord val `xor` def)
+
+instance StructField Double where
+    type DefaultTy Double = Word64
+    getField' struct index def = do
+        val <- getField struct index
+        return $ wordToDouble (doubleToWord val `xor` def)
 
 instance StructField TextReader where
-    getField reader index = getText ptrReader nullPtr 0
+    type DefaultTy TextReader = Ptr WirePointer
+    getField reader index = getField' reader index nullPtr
+    getField' reader index def = getText ptrReader (castPtr def) 0
       where
         ptrReader = getPointerField reader (fromIntegral index)
 
 instance StructField DataReader where
-    getField reader index = getData ptrReader nullPtr 0
+    type DefaultTy DataReader = Ptr WirePointer
+    getField reader index = getField' reader index nullPtr
+    getField' reader index def = getData ptrReader (castPtr def) 0
       where
         ptrReader = getPointerField reader (fromIntegral index)
 
-instance StructField PointerReader where
-    getField reader index = return $ getPointerField reader (fromIntegral index)
+{- instance StructField PointerReader where -}
+    {- getField reader index = return $ getPointerField reader (fromIntegral index) -}
 
 instance StructField StructReader where
-    getField reader index = getStruct ptrReader nullPtr
+    type DefaultTy StructReader = Ptr WirePointer
+    getField reader index = getField' reader index nullPtr
+    getField' reader index def = getStruct ptrReader (castPtr def)
       where
         ptrReader = getPointerField reader (fromIntegral index)
 
 instance (ListElement a) => StructField (ListReader a) where
-    getField = getFieldHack undefined
+    type DefaultTy (ListReader a) = Ptr WirePointer
+    getField reader index = getField' reader index nullPtr
+    getField' = getFieldHack undefined
       where
-        getFieldHack :: (ListElement a) => a -> StructReader -> ElementCount -> IO (ListReader a)
-        getFieldHack dummy reader index = ListReader <$> getList ptrReader (elementSize dummy) nullPtr
+        getFieldHack :: (ListElement a) => a -> StructReader -> ElementCount -> DefaultTy (ListReader a) -> IO (ListReader a)
+        getFieldHack dummy reader index def = ListReader <$> getList ptrReader (elementSize dummy) (castPtr def)
           where
             ptrReader = getPointerField reader (fromIntegral index)
 
-getFieldMasked :: (StructField a, Zero a, Mask a) => StructReader -> ElementCount -> MaskTy a -> IO a
-getFieldMasked reader offset m = fmap (`mask` m) $ getField reader offset
-
 ---------------------
-
-getDataFieldMask :: (Storable a, Zero a, Mask a)
-                 => StructReader -> ElementCount -> MaskTy a -> IO a
-getDataFieldMask reader offset m = fmap (`mask` m) $ getDataField reader offset
 
 getDataField :: (Storable a, Zero a) => StructReader -> ElementCount -> IO a
 getDataField = getDataFieldHack undefined
@@ -545,13 +598,60 @@ getPointerElement reader index =
     PointerReader (untypedListReaderSegment reader) ptr
   where
     ptr = untypedListReaderData reader `plusPtr` offset
-    offset = (fromIntegral (untypedListReaderStep reader `div` fromIntegral bitsPerByte))
+    offset = fromIntegral index * (fromIntegral (untypedListReaderStep reader `div` fromIntegral bitsPerByte))
 
 --------------------------------------------------------------------------------
 
+-- TODO: rewrite-rules for:
+--          map f (toList reader)
+--          map f (reverse (toList reader))
+--          foldM f (reverse (toList reader))
 newtype ListReader a = ListReader UntypedListReader
-listLength :: ListReader a -> Int
+
+listLength :: ListReader a -> ElementCount
 listLength (ListReader reader) = fromIntegral $ untypedListReaderElementCount reader
+
+toList :: (ListElement a) => ListReader a -> IO [a]
+toList list = mapM (getElement list) [0..listLength list-1]
+
+eachElement_ :: (ListElement a) => ListReader a -> (a -> IO b) -> IO ()
+eachElement_ list fn =
+    unless (listLength list == 0) $
+      mapM_ (fn <=< getElement list) [0..listLength list-1]
+
+eachElement :: (ListElement a) => ListReader a -> (a -> IO b) -> IO [b]
+eachElement list fn =
+    if listLength list == 0
+      then return []
+      else mapM (fn <=< getElement list) [0..listLength list-1]
+
+mapElements :: (ListElement a) => (a -> IO b) -> ListReader a -> IO [b]
+mapElements fn list =
+    if listLength list == 0
+      then return []
+      else mapM (fn <=< getElement list) [0..listLength list-1]
+
+foldrElements :: (ListElement a) => (a -> b -> IO b) -> b -> ListReader a -> IO b
+foldrElements f z0 list = go len z0
+  where
+    len = listLength list
+    go n z =
+        if n == 0
+          then return z
+          else do
+              elem <- getElement list (n-1)
+              f elem z >>= go (n-1)
+
+foldlElements :: (ListElement a) => (b -> a -> IO b) -> b -> ListReader a -> IO b
+foldlElements f z0 list = go 0 z0
+  where
+    len = listLength list
+    go n z =
+        if n == len
+          then return z
+          else do
+              elem <- getElement list n
+              f z elem >>= go (n+1)
 
 -- TODO:
 -- * assert index < len
@@ -610,10 +710,6 @@ instance ListElement Float where
 instance ListElement Double where
     elementSize _ = SzEightBytes
 
-instance ListElement PointerReader where
-    elementSize _ = SzPointer
-    getUntypedElement reader index = return $ getPointerElement reader (fromIntegral index)
-
 instance ListElement StructReader where
     elementSize _ = SzInlineComposite
     getUntypedElement reader index = return $ getStructElement reader (fromIntegral index)
@@ -647,3 +743,22 @@ offsetPtr = offsetPtrHack undefined
   where
     offsetPtrHack :: Storable a => a -> Ptr a -> Int -> Ptr a
     offsetPtrHack dummy ptr offset = ptr `plusPtr` (sizeOf dummy * offset)
+
+--------------------------------------------------------------------------------
+
+wordToFloat :: Word32 -> Float
+wordToFloat x = runST (cast x)
+
+floatToWord :: Float -> Word32
+floatToWord x = runST (cast x)
+
+wordToDouble :: Word64 -> Double
+wordToDouble x = runST (cast x)
+
+doubleToWord :: Double -> Word64
+doubleToWord x = runST (cast x)
+
+{-# INLINE cast #-}
+cast :: (MArray (STUArray s) a (ST s),
+         MArray (STUArray s) b (ST s)) => a -> ST s b
+cast x = newArray (0 :: Int, 0) x >>= castSTUArray >>= flip readArray 0

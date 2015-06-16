@@ -30,13 +30,11 @@ library
     , vector
     , bytestring
     , unordered-containers
+    , containers
 
   exposed-modules:
     Data.CapnProto.Arena
     Data.CapnProto.Layout
-    Data.CapnProto.Mask
-    Data.CapnProto.Parser
-    Data.CapnProto.Schema
     Data.CapnProto.Serialize
     Data.CapnProto.Units
 
@@ -45,18 +43,10 @@ library
 
   hs-source-dirs:     src
 
-  ghc-options:        -O2
+  -- ghc-options:        -O2
+  -- ghc-options:        -O2 -ddump-deriv -ddump-to-file
 
-  --other-extensions:
-  --  CPP
-  --  FlexibleContexts
-  --  FlexibleInstances
-  --  ForeignFunctionInterface
-  --  GADTs
-  --  TypeFamilies
-  --  UndecidableInstances
-
-executable boot
+executable capnpc-hs
   default-language: Haskell98
   build-depends:
       base              >= 4 && < 5
@@ -68,14 +58,23 @@ executable boot
     , unordered-containers
     , pretty-show
     , hs-capnp
+    , transformers
+    , split
+    , containers
+    , ghc-prim
 
-  hs-source-dirs: boot
+  hs-source-dirs: capnpc-hs
 
-  if os(osx)
-    ghc-options: -optl-headerpad_max_install_names
+  other-modules:
+    Data.CapnProto.Schema
+    Data.CapnProto.Schema.Generated
+    Data.CapnProto.Schema.Generator
+
+  -- if os(osx)
+    -- ghc-options: -optl-headerpad_max_install_names
 
   main-is:     Main.hs
-  ghc-options: -O2
+  --ghc-options: -O2 -ddump-deriv -ddump-to-file
 
 test-suite spec
   type:             exitcode-stdio-1.0

@@ -3,7 +3,6 @@ module Data.CapnProto.Arena where
 import qualified Data.ByteString           as BS
 import           Data.ByteString.Internal  (toForeignPtr)
 import           Data.Word
-import           Foreign.C.String
 import           Foreign.ForeignPtr
 import           Foreign.ForeignPtr.Unsafe
 import           Foreign.Ptr

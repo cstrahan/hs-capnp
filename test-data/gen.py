@@ -56,9 +56,18 @@ struct.field1.field0 = 0x55667788
 struct.field2.field0 = 0x99AABBCC
 write(struct, "three_structs")
 
+struct = tests_capnp.ThreeLists.new_message()
+struct.field0 = [0]
+struct.field1 = [1,2]
+struct.field2 = [3,4,5]
+write(struct, "three_lists")
+
 struct = tests_capnp.ListOfUInt32.new_message()
 struct.field0 = [0x11223344, 0x55667788, 0x99AABBCC]
 write(struct, "list_of_uint32")
+
+struct = tests_capnp.ListOfUInt32.new_message()
+write(struct, "uninitialized_list_of_uint32")
 
 struct = tests_capnp.ListOfUInt64.new_message()
 struct.field0 = [0x1020304050607080, 0x1121314151617181, 0x1222324252627282]
@@ -82,3 +91,23 @@ write(struct, "one_text")
 struct = tests_capnp.OneData.new_message()
 struct.field0 = "This is some data."
 write(struct, "one_data")
+
+struct = tests_capnp.ListOfListOfUInt32.new_message()
+l = struct.init("field0", 3)
+l[0] = [0]
+l[1] = [1, 2]
+l[2] = [3, 4, 5]
+write(struct, "list_of_list_of_uint32")
+
+struct = tests_capnp.Mixed.new_message()
+struct.field0 = 12345
+struct.field1.field0 = 67890
+struct.init("field3", 3)
+struct.field3 = [20304, 30405, 50607]
+write(struct, "mixed")
+
+# TODO
+# list of list of uint32
+# three lists
+# three texts
+# three datas
