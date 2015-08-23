@@ -7,6 +7,7 @@ import qualified Data.ByteString           as BS
 import           Data.ByteString.Internal  (toForeignPtr)
 import           Data.Word
 import           Data.IORef
+import           Data.Monoid
 import           Foreign.ForeignPtr
 import           Foreign.ForeignPtr.Unsafe
 import           Foreign.Ptr
@@ -95,19 +96,6 @@ allocateSegmentBuilder arena numWords = do
 
 ---------------------------
 
-allocateOwnedMemory :: Arena Builder -> WordCount32 -> IO (ForeignPtr Word8, WordCount32)
-allocateOwnedMemory arena minSize = do
-    nextSize <- readIORef (arenaNextSize arena)
-    let size = max minSize nextSize
-    fptr <- mallocForeignPtrBytes $ fromIntegral size
-    case arenaAllocationStrategy arena of
-        GrowHeuristically ->
-          void $ writeIORef (arenaNextSize arena) (nextSize + size)
-        _ ->
-          return ()
-    return (fptr, size)
-
-
 appendSegment :: Arena Builder -> Segment Builder -> IO ()
 appendSegment arena segment = do
     segments <- readIORef . arenaSegments $ arena
@@ -121,6 +109,19 @@ getFirstSegment arena = head <$> readIORef (arenaSegments arena)
 
 getLastSegment :: Arena a -> IO (Segment a)
 getLastSegment arena = last <$> readIORef (arenaSegments arena)
+
+allocateOwnedMemory :: Arena Builder -> WordCount32 -> IO (ForeignPtr Word8, WordCount32)
+allocateOwnedMemory arena minSize = do
+    nextSize <- readIORef (arenaNextSize arena)
+    let size = max minSize nextSize
+    let sizeInBytes = fromIntegral size * bytesPerWord
+    fptr <- mallocForeignPtrBytes $ sizeInBytes
+    case arenaAllocationStrategy arena of
+        GrowHeuristically ->
+          void $ writeIORef (arenaNextSize arena) (nextSize + size)
+        _ ->
+          return ()
+    return (fptr, size)
 
 arenaAllocate :: Arena Builder -> WordCount32 -> IO (Segment Builder, Ptr Word)
 arenaAllocate arena amount = do
@@ -178,4 +179,21 @@ arenaFromByteStrings strs = arena
 tryGetSegment :: Arena a -> SegmentId -> IO (Segment a)
 tryGetSegment arena id = do
     segments <- readIORef $ arenaSegments arena
-    return $ segments !! fromIntegral id
+    case segments `at` fromIntegral id of
+        Left err -> fail $ "Invalid segment id: "<>err
+        Right res -> return res
+
+--------------------------------------------------------------------------------
+
+at :: [a] -> Int -> Either String a
+at xs o | o < 0 = Left $ "index must not be negative, index=" ++ show o
+         | otherwise = f o xs
+    where f 0 (x:xs) = Right x
+          f i (x:xs) = f (i-1) xs
+          f i [] = Left $ "index too large, index=" ++ show o ++ ", length=" ++ show (o-i)
+
+atMay :: [a] -> Int -> Maybe a
+atMay xs o = eitherToMaybe $ at xs o
+
+eitherToMaybe :: Either a b -> Maybe b
+eitherToMaybe = either (const Nothing) Just
