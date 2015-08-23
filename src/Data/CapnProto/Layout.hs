@@ -146,11 +146,11 @@ instance Storable WirePointer where
     alignment _ = 8
     poke ptr (WirePointer a b) =
         let p0 = castPtr ptr :: Ptr (WireValue Word32)
-            p1 = castPtr $ p0 `offsetPtr` 1
+            p1 = castPtr $ p0 `advancePtr` 1
         in poke p0 a >> poke p1 b
     peek ptr =
         let p0 = castPtr ptr :: Ptr (WireValue Word32)
-            p1 = castPtr $ p0 `offsetPtr` 1
+            p1 = castPtr $ p0 `advancePtr` 1
         in WirePointer <$> peek p0 <*> peek p1
 
 wirePointerKind :: WirePointer -> WirePointerKind
@@ -167,7 +167,7 @@ nonFarOffset = (`shiftR` 2) . fromIntegral . offsetAndKind
 wirePointerTarget :: Ptr WirePointer -> IO (Ptr CPWord)
 wirePointerTarget ref = do
     wptr <- peek ref
-    return $ ref `plusPtr` (nonFarOffset wptr * bytesPerWord + sizeOf (undefined :: WirePointer))
+    return $ (castPtr ref :: Ptr CPWord) `advancePtr` (nonFarOffset wptr + 1)
 
 farPositionInSegment :: WirePointer -> WordCount32
 farPositionInSegment = (`shiftR` 3) . offsetAndKind
@@ -184,7 +184,7 @@ inlineCompositeListElementCount ptr = offsetAndKind ptr `shiftR` 2
 containsInterval :: Segment Reader -> Ptr CPWord -> Ptr CPWord -> Bool
 containsInterval segment from to =
     let thisBegin = unsafeSegmentPtr segment
-        thisEnd = thisBegin `plusPtr` (fromIntegral (segmentSize segment) * bytesPerWord)
+        thisEnd = thisBegin `advancePtr` fromIntegral (segmentSize segment)
     in from >= thisBegin && to <= thisEnd && from <= to
 
 setKindAndTargetForEmptyStruct :: Ptr WirePointer -> IO ()
@@ -333,13 +333,13 @@ followFars ref segment = do
     -- If the segment is null, this is an unchecked message, so there are no FAR pointers.
     if (isNull segment) || wirePointerKind wirePtr /= Far
       then do
-          let contentPtr = (ref `plusPtr` (nonFarOffset wirePtr * bytesPerWord)) `plusPtr` sizeOf (undefined :: WirePointer)
+          let contentPtr = ((castPtr ref :: Ptr CPWord) `advancePtr` (nonFarOffset wirePtr + 1))
           return (wirePtr, contentPtr, segment)
       else do
           segment' <- tryGetSegment (segmentArena segment) (wptrSegmentId wirePtr)
           let padWords = if isDoubleFar wirePtr then 2 else 1
           withSegment segment' $ \segmentPtr -> do
-              let landingPad = segmentPtr `plusPtr` (bytesPerWord * fromIntegral (farPositionInSegment wirePtr))
+              let landingPad = (castPtr segmentPtr :: Ptr WirePointer) `advancePtr` (fromIntegral (farPositionInSegment wirePtr))
               -- XXX bounds check
               if isDoubleFar wirePtr
                 then do
@@ -348,12 +348,12 @@ followFars ref segment = do
                     -- object.
                     wirePtr' <- peek landingPad
                     segment'' <- tryGetSegment (segmentArena segment') (wptrSegmentId wirePtr')
-                    contentPtr <- withSegment segment'' (return . (`plusPtr` fromIntegral (farPositionInSegment wirePtr' * fromIntegral bytesPerWord)))
-                    finalWirePtr <- peek $ landingPad `plusPtr` bytesPerWord
+                    contentPtr <- withSegment segment'' (return . (`advancePtr` fromIntegral (farPositionInSegment wirePtr')))
+                    finalWirePtr <- peek $ landingPad `advancePtr` 1
                     return (finalWirePtr, contentPtr, segment'')
                 else do
                     wirePtr' <- peek landingPad
-                    let contentPtr = landingPad `plusPtr` (bytesPerWord * (nonFarOffset wirePtr' + 1))
+                    let contentPtr = (castPtr landingPad :: Ptr CPWord) `advancePtr` (nonFarOffset wirePtr' + 1)
                     finalWirePtr <- peek $ landingPad
                     return (finalWirePtr, contentPtr, segment')
 
@@ -375,10 +375,10 @@ zeroObject segment ref = do
 
                   let content = getPtrUnchecked segment (farPositionInSegment wptr)
 
-                  zeroObjectHelper segment (pad `plusPtr` bytesPerWord) content
+                  zeroObjectHelper segment (pad `advancePtr` 1) content
 
                   poke (castPtr pad :: Ptr CPWord) 0
-                  poke (castPtr pad `plusPtr` bytesPerWord :: Ptr CPWord) 0
+                  poke ((castPtr pad :: Ptr CPWord) `advancePtr` 1) 0
               else do
                   zeroObject segment pad
                   poke (castPtr pad :: Ptr CPWord) 0
@@ -623,7 +623,7 @@ readListPointer segment expectedSize ref defaultValue = withSegment segment $ \_
                   -- first field in the struct is the pointer we were looking for, we want to
                   -- munge the pointer to point at the first element's pointer section.
                   content <- if expectedSize == SzPointer
-                               then return $ content `plusPtr` ((fromIntegral $ structRefDataSize structRef) * bytesPerWord)
+                               then return $ content `advancePtr` (fromIntegral $ structRefDataSize structRef)
                                else return content
 
                   return $ UntypedListReader
@@ -671,7 +671,7 @@ readStructPointer segment ref defaultValue = withSegment segment $ \_ ->
           (wirePtr, content, segment) <- followFars ref segment
           let dataWords = structRefDataSize . toStructRef $ wirePtr
               numPtrs = structRefPtrCount . toStructRef $ wirePtr
-              ptrs = content `plusPtr` (bytesPerWord * fromIntegral dataWords)
+              ptrs = castPtr $ content `advancePtr` fromIntegral dataWords :: Ptr WirePointer
           -- XXX bounds check
           return $ StructReader segment (castPtr content) ptrs (fromIntegral dataWords * fromIntegral bitsPerWord) numPtrs
 
@@ -826,7 +826,7 @@ getPointerField reader ptrIndex =
     if (fromIntegral ptrIndex) < structReaderPtrCount reader
         then PointerReader
                (structReaderSegment reader)
-               (structReaderPointers reader `plusPtr` (bytesPerWord * fromIntegral ptrIndex))
+               (structReaderPointers reader `advancePtr` fromIntegral ptrIndex)
         else defaultPointerReader
 
 --------------------------------------------------------------------------------
@@ -995,16 +995,6 @@ instance (ListElement a) => ListElement (ListReader a) where
         getUntypedElementHack dummy reader index = ListReader <$> getList ptrReader (elementSize dummy) nullPtr
           where
             ptrReader = getPointerElement reader (fromIntegral index)
-
---------------------------------------------------------------------------------
-
--- oops - this is `Foreign.Marshal.Array.advancePointer`.
-{-# INLINE offsetPtr #-}
-offsetPtr :: Storable a => Ptr a -> Int -> Ptr a
-offsetPtr = offsetPtrHack undefined
-  where
-    offsetPtrHack :: Storable a => a -> Ptr a -> Int -> Ptr a
-    offsetPtrHack dummy ptr offset = ptr `plusPtr` (sizeOf dummy * offset)
 
 --------------------------------------------------------------------------------
 
