@@ -417,14 +417,16 @@ zeroObjectHelper segment tag ptr = do
                     let dataSize = (structRefDataSize $ toStructRef wptr)
                         pointerCount = (structRefPtrCount $ toStructRef wptr)
                         count = inlineCompositeListElementCount wptr
+                        wordSize = dataSize + pointerCount
                     foldM_ (\pos _ -> do
-                        let pos = pos `advancePtr` 1 :: Ptr CPWord
+                        let pos = pos `advancePtr` fromIntegral dataSize :: Ptr CPWord
                         foldM (\pos _ -> do
                             zeroObject segment (castPtr pos)
                             return $ pos `advancePtr` 1
                           ) pos [0..pointerCount-1]
                       ) (ptr `advancePtr` 1) [0..count-1]
-                    return ()
+                    zeroArray ptr (fromIntegral wordSize * fromIntegral count + 1)
+
         Far -> fail "Unexpected FAR pointer"
 
 -- TODO: assert ptr > segPtr
