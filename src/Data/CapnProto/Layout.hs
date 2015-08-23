@@ -418,6 +418,9 @@ zeroObjectHelper segment tag ptr = do
                         pointerCount = (structRefPtrCount $ toStructRef wptr)
                         count = inlineCompositeListElementCount wptr
                         wordSize = dataSize + pointerCount
+                        elemKind = wirePointerKind wptr
+                    when (elemKind /= Struct) $
+                        fail "Don't know how to handle non-STRUCT inline composite"
                     foldM_ (\pos _ -> do
                         let pos = pos `advancePtr` fromIntegral dataSize :: Ptr CPWord
                         foldM (\pos _ -> do
@@ -426,7 +429,6 @@ zeroObjectHelper segment tag ptr = do
                           ) pos [0..pointerCount-1]
                       ) (ptr `advancePtr` 1) [0..count-1]
                     zeroArray ptr (fromIntegral wordSize * fromIntegral count + 1)
-
         Far -> fail "Unexpected FAR pointer"
 
 -- TODO: assert ptr > segPtr
