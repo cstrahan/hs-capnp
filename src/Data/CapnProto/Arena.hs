@@ -27,16 +27,16 @@ type SegmentId = Word32
 data Segment a = Segment
   { segmentArena      :: Arena a
   , segmentForeignPtr :: ForeignPtr Word8
-  , unsafeSegmentPtr  :: Ptr Word
+  , unsafeSegmentPtr  :: Ptr CPWord
   , segmentSize       :: WordCount32
   , _segmentId        :: SegmentId
-  , _segmentPos       :: IORef (Ptr Word)
+  , _segmentPos       :: IORef (Ptr CPWord)
   }
 
 segmentId :: Segment Builder -> SegmentId
 segmentId = _segmentId
 
-segmentPos :: Segment Builder -> IORef (Ptr Word)
+segmentPos :: Segment Builder -> IORef (Ptr CPWord)
 segmentPos = _segmentPos
 
 instance Nullable (Segment a) where
@@ -60,7 +60,7 @@ nullSegment =
   where
     nullPos = unsafePerformIO $ newIORef nullPtr
 
-withSegment :: Segment a -> (Ptr Word -> IO b) -> IO b
+withSegment :: Segment a -> (Ptr CPWord -> IO b) -> IO b
 withSegment reader f = withForeignPtr (segmentForeignPtr reader) $ \_ ->
     f (unsafeSegmentPtr reader)
 
@@ -123,7 +123,7 @@ allocateOwnedMemory arena minSize = do
           return ()
     return (fptr, size)
 
-arenaAllocate :: Arena Builder -> WordCount32 -> IO (Segment Builder, Ptr Word)
+arenaAllocate :: Arena Builder -> WordCount32 -> IO (Segment Builder, Ptr CPWord)
 arenaAllocate arena amount = do
     segment <- getLastSegment arena
     segmentAllocate segment amount >>= \case
@@ -139,7 +139,7 @@ arenaAllocate arena amount = do
 
 ---------------------------
 
-segmentAllocate :: Segment Builder -> WordCount32 -> IO (Maybe (Ptr Word))
+segmentAllocate :: Segment Builder -> WordCount32 -> IO (Maybe (Ptr CPWord))
 segmentAllocate segment amount = do
     currSize <- segmentCurrentSize segment
     if amount > segmentSize segment - currSize
@@ -149,7 +149,7 @@ segmentAllocate segment amount = do
           writeIORef (segmentPos segment) (pos `plusPtr` (fromIntegral amount * bytesPerWord))
           return . Just $ pos
 
-getPtrUnchecked :: Segment Builder -> WordCount32 -> Ptr Word
+getPtrUnchecked :: Segment Builder -> WordCount32 -> Ptr CPWord
 getPtrUnchecked segment offset = unsafeSegmentPtr segment `plusPtr` (fromIntegral offset * bytesPerWord)
 
 segmentCurrentSize :: Segment Builder -> IO WordCount32

@@ -6,6 +6,8 @@ import Foreign.Ptr
 
 --------------------------------------------------------------------------------
 
+type CPWord = Word64
+
 type BitCount = Word
 type BitCount8 = Word8
 type BitCount16 = Word16

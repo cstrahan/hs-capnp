@@ -50,8 +50,6 @@ debugSegment reader = withSegment reader $ \ptr -> do
 
 --------------------------------------------------------------------------------
 
-type CPWord = Word64
-
 data ElementSize =
     SzVoid
   | SzBit
@@ -166,7 +164,7 @@ wirePointerKind ptr =
 nonFarOffset :: WirePointer -> Int
 nonFarOffset = (`shiftR` 2) . fromIntegral . offsetAndKind
 
-wirePointerTarget :: Ptr WirePointer -> IO (Ptr Word)
+wirePointerTarget :: Ptr WirePointer -> IO (Ptr CPWord)
 wirePointerTarget ref = do
     wptr <- peek ref
     return $ ref `plusPtr` (nonFarOffset wptr * bytesPerWord + sizeOf (undefined :: WirePointer))
@@ -183,7 +181,7 @@ wptrSegmentId ptr = fromIntegral (upper32Bits ptr)
 inlineCompositeListElementCount :: WirePointer -> ElementCount32
 inlineCompositeListElementCount ptr = offsetAndKind ptr `shiftR` 2
 
-containsInterval :: Segment Reader -> Ptr Word -> Ptr Word -> Bool
+containsInterval :: Segment Reader -> Ptr CPWord -> Ptr CPWord -> Bool
 containsInterval segment from to =
     let thisBegin = unsafeSegmentPtr segment
         thisEnd = thisBegin `plusPtr` (fromIntegral (segmentSize segment) * bytesPerWord)
@@ -208,7 +206,7 @@ setOffsetAndKind ref offset kind = do
     let wptr = wptr { offsetAndKind = (fromIntegral offset `shiftL` 2)  .|. (fromIntegral $ fromEnum kind) }
     return wptr
 
-setKindAndTarget :: Ptr WirePointer -> WirePointerKind -> Ptr Word -> Segment Builder -> IO WirePointer
+setKindAndTarget :: Ptr WirePointer -> WirePointerKind -> Ptr CPWord -> Segment Builder -> IO WirePointer
 setKindAndTarget ref kind target segment =
     setOffsetAndKind ref offset kind
   where
@@ -226,7 +224,7 @@ setFar ref doubleFar pos id = do
 
 --------------------------------------------------------------------------------
 
-getRoot :: Segment Reader -> Ptr Word -> Either String PointerReader
+getRoot :: Segment Reader -> Ptr CPWord -> Either String PointerReader
 getRoot segment location =
     case boundsCheck segment location (location `plusPtr` pointerSizeInWords) Struct of
         Left msg -> Left msg
@@ -244,7 +242,7 @@ roundBitsUpToWords bits = fromIntegral $ (bits + 63) `div` fromIntegral bitsPerW
 roundBitsUpToBytes :: BitCount64 -> ByteCount32
 roundBitsUpToBytes bytes = fromIntegral $ (bytes + 7) `div` fromIntegral bitsPerByte
 
-boundsCheck :: Segment Reader -> Ptr Word -> Ptr Word -> WirePointerKind -> Either String ()
+boundsCheck :: Segment Reader -> Ptr CPWord -> Ptr CPWord -> WirePointerKind -> Either String ()
 boundsCheck segment start end kind =
     if isNull segment || containsInterval segment start end
       then Right ()
@@ -258,7 +256,7 @@ boundsCheck segment start end kind =
 
 allocate :: Ptr WirePointer -> Segment Builder -> WordCount32 -> WirePointerKind
          -> IO ( Ptr WirePointer -- The wire-ptr ref
-               , Ptr Word        -- The content
+               , Ptr CPWord        -- The content
                , Segment Builder -- The segment builder
                )
 allocate ref segment amount kind = withSegment segment $ \_ -> do
@@ -296,7 +294,7 @@ allocate ref segment amount kind = withSegment segment $ \_ -> do
 
 followBuilderFars :: Ptr WirePointer -> Segment Builder
                   -> IO ( Ptr WirePointer
-                        , Ptr Word
+                        , Ptr CPWord
                         , Segment Builder
                         )
 followBuilderFars ref segment = do
@@ -327,7 +325,7 @@ followBuilderFars ref segment = do
 
 followFars :: Ptr WirePointer -> Segment Reader
            -> IO ( WirePointer    -- The resolved non-far-pointer
-                 , Ptr Word       -- The pointer the the actual content
+                 , Ptr CPWord       -- The pointer the the actual content
                  , Segment Reader -- The target segment, in the case of far-pointers
                  )
 followFars ref segment = do
@@ -418,7 +416,7 @@ zeroObject segment ref = do
 --         }
 --     }
 -- 
-zeroObjectHelper :: Segment Builder -> Ptr WirePointer -> Ptr Word -> IO ()
+zeroObjectHelper :: Segment Builder -> Ptr WirePointer -> Ptr CPWord -> IO ()
 zeroObjectHelper segment tag ptr = do
     wptr <- peek tag
     case wirePointerKind wptr of
@@ -499,11 +497,11 @@ getWordOffsetTo segment ptr = fromIntegral wordCount
 
 --------------------------------------------------------------------------------
 
-getData :: PointerReader -> Ptr Word -> ByteCount32 -> IO DataReader
+getData :: PointerReader -> Ptr CPWord -> ByteCount32 -> IO DataReader
 getData reader =
     readDataPointer (pointerReaderSegment reader) (pointerReaderData reader)
 
-readDataPointer :: Segment Reader -> Ptr WirePointer -> Ptr Word -> ByteCount32 -> IO DataReader
+readDataPointer :: Segment Reader -> Ptr WirePointer -> Ptr CPWord -> ByteCount32 -> IO DataReader
 readDataPointer segment ref defaultValue defaultSize = withSegment segment $ \_ -> do
     pred <- wirePtrRefIsNull ref
     if pred
@@ -529,11 +527,11 @@ readDataPointer segment ref defaultValue defaultSize = withSegment segment $ \_ 
           let bs = BS.fromForeignPtr (segmentForeignPtr segment) (content `minusPtr` unsafeSegmentPtr segment) (fromIntegral size)
           return $ DataReader $ Just bs
 
-getText :: PointerReader -> Ptr Word -> ByteCount32 -> IO TextReader
+getText :: PointerReader -> Ptr CPWord -> ByteCount32 -> IO TextReader
 getText reader =
     readTextPointer (pointerReaderSegment reader) (pointerReaderData reader)
 
-readTextPointer :: Segment Reader -> Ptr WirePointer -> Ptr Word -> ByteCount32 -> IO TextReader
+readTextPointer :: Segment Reader -> Ptr WirePointer -> Ptr CPWord -> ByteCount32 -> IO TextReader
 readTextPointer segment ref defaultValue defaultSize = withSegment segment $ \sptr -> do
     pred <- wirePtrRefIsNull ref
     if pred
@@ -569,11 +567,11 @@ readTextPointer segment ref defaultValue defaultSize = withSegment segment $ \sp
 
           return $ TextReader $ Just bs
 
-getList :: PointerReader -> ElementSize -> Ptr Word -> IO UntypedListReader
+getList :: PointerReader -> ElementSize -> Ptr CPWord -> IO UntypedListReader
 getList reader expectedSize =
     readListPointer (pointerReaderSegment reader) expectedSize (pointerReaderData reader)
 
-readListPointer :: Segment Reader -> ElementSize -> Ptr WirePointer -> Ptr Word -> IO UntypedListReader
+readListPointer :: Segment Reader -> ElementSize -> Ptr WirePointer -> Ptr CPWord -> IO UntypedListReader
 readListPointer segment expectedSize ref defaultValue = withSegment segment $ \_ -> do
     pred <- wirePtrRefIsNull ref
     if pred
@@ -658,10 +656,10 @@ readListPointer segment expectedSize ref defaultValue = withSegment segment $ \_
                     dataSize
                     (fromIntegral pointerCount)
 
-getStruct :: PointerReader -> Ptr Word -> IO StructReader
+getStruct :: PointerReader -> Ptr CPWord -> IO StructReader
 getStruct reader = readStructPointer (pointerReaderSegment reader) (pointerReaderData reader)
 
-readStructPointer :: Segment Reader -> Ptr WirePointer -> Ptr Word -> IO StructReader
+readStructPointer :: Segment Reader -> Ptr WirePointer -> Ptr CPWord -> IO StructReader
 readStructPointer segment ref defaultValue = withSegment segment $ \_ ->
     if isNull ref
       then do

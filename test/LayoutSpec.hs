@@ -144,13 +144,13 @@ spec = do
             struct <- readStruct "test-data/one_text"
             text <- L.getField struct 0 :: IO L.TextReader
 
-            L.textReaderData text `shouldBe` ("This is some text." :: BS.ByteString)
+            L.textReaderData text `shouldBe` (Just "This is some text.")
 
         it "data" $ do
             struct <- readStruct "test-data/one_data"
             text <- L.getField struct 0 :: IO L.DataReader
 
-            L.dataReaderData text `shouldBe` ("This is some data." :: BS.ByteString)
+            L.dataReaderData text `shouldBe` (Just "This is some data.")
 
         it "mixed" $ do
             struct <- readStruct "test-data/mixed"
