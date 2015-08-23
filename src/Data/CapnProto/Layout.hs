@@ -15,11 +15,11 @@ import           Data.Array.Unsafe        (castSTUArray)
 import           Data.Bits
 import qualified Data.ByteString          as BS
 import qualified Data.ByteString.Char8    as BSC
-import qualified Data.ByteString.Internal as BS (fromForeignPtr)
+import qualified Data.ByteString.Internal as BS (fromForeignPtr, memset)
 import           Data.Int
 import           Data.Monoid
 import           Data.Word
-import           Foreign.C.Types          (CChar)
+import           Foreign.C.Types          (CChar, CSize)
 import           Foreign.ForeignPtr
 import           Foreign.Marshal.Array    hiding (newArray)
 import           Foreign.Ptr
@@ -383,110 +383,49 @@ zeroObject segment ref = do
                   zeroObject segment pad
                   poke (castPtr pad :: Ptr CPWord) 0
 
--- 
---     pub unsafe fn zero_object(mut segment : *mut SegmentBuilder, reff : *mut WirePointer) {
---         //# Zero out the pointed-to object. Use when the pointer is
---         //# about to be overwritten making the target object no longer
---         //# reachable.
--- 
---         match (*reff).kind() {
---             WirePointerKind::Struct | WirePointerKind::List | WirePointerKind::Other => {
---                 zero_object_helper(segment,
---                                  reff, (*reff).mut_target())
---             }
---             WirePointerKind::Far => {
---                 segment = (*(*segment).get_arena()).get_segment((*reff).far_ref().segment_id.get()).unwrap();
---                 let pad : *mut WirePointer =
---                     ::std::mem::transmute((*segment).get_ptr_unchecked((*reff).far_position_in_segment()));
--- 
---                 if (*reff).is_double_far() {
---                     segment = (*(*segment).get_arena()).get_segment((*pad).far_ref().segment_id.get()).unwrap();
--- 
---                     zero_object_helper(segment,
---                                      pad.offset(1),
---                                      (*segment).get_ptr_unchecked((*pad).far_position_in_segment()));
--- 
---                     ::std::ptr::write_bytes(pad, 0u8, 2);
--- 
---                 } else {
---                     zero_object(segment, pad);
---                     ::std::ptr::write_bytes(pad, 0u8, 1);
---                 }
---             }
---         }
---     }
--- 
 zeroObjectHelper :: Segment Builder -> Ptr WirePointer -> Ptr CPWord -> IO ()
 zeroObjectHelper segment tag ptr = do
     wptr <- peek tag
     case wirePointerKind wptr of
         Other -> fail "Don't know how to handle OTHER"
-        --Struct -> do
-        --    let dataSize = structRefDataSize (structRef wptr)
-        --    let pointerSection = castPtr $ ptr `plusPtr`  :: Ptr WirePointer
-
---     pub unsafe fn zero_object_helper(segment : *mut SegmentBuilder,
---                                      tag : *mut WirePointer,
---                                      ptr: *mut Word) {
---         match (*tag).kind() {
---             WirePointerKind::Other => { panic!("Don't know how to handle OTHER") }
---             WirePointerKind::Struct => {
---                 let pointer_section : *mut WirePointer =
---                     ::std::mem::transmute(
---                     ptr.offset((*tag).struct_ref().data_size.get() as isize));
--- 
---                 let count = (*tag).struct_ref().ptr_count.get() as isize;
---                 for i in 0..count {
---                     zero_object(segment, pointer_section.offset(i));
---                 }
---                 ::std::ptr::write_bytes(ptr, 0u8, (*tag).struct_ref().word_size() as usize);
---             }
---             WirePointerKind::List => {
---                 match (*tag).list_ref().element_size() {
---                     Void =>  { }
---                     Bit | Byte | TwoBytes | FourBytes | EightBytes => {
---                         ::std::ptr::write_bytes(
---                             ptr, 0u8,
---                             round_bits_up_to_words((
---                                     (*tag).list_ref().element_count() *
---                                         data_bits_per_element(
---                                         (*tag).list_ref().element_size())) as u64) as usize)
---                     }
---                     Pointer => {
---                         let count = (*tag).list_ref().element_count() as usize;
---                         for i in 0..count as isize {
---                             zero_object(segment,
---                                        ::std::mem::transmute(ptr.offset(i)))
---                         }
---                         ::std::ptr::write_bytes(ptr, 0u8, count);
---                     }
---                     InlineComposite => {
---                         let element_tag : *mut WirePointer = ::std::mem::transmute(ptr);
--- 
---                         assert!((*element_tag).kind() == WirePointerKind::Struct,
---                                 "Don't know how to handle non-STRUCT inline composite");
--- 
---                         let data_size = (*element_tag).struct_ref().data_size.get();
---                         let pointer_count = (*element_tag).struct_ref().ptr_count.get();
---                         let mut pos : *mut Word = ptr.offset(1);
---                         let count = (*element_tag).inline_composite_list_element_count();
---                         for _ in 0..count {
---                             pos = pos.offset(data_size as isize);
---                             for _ in 0..pointer_count {
---                                 zero_object(
---                                     segment,
---                                     ::std::mem::transmute::<*mut Word, *mut WirePointer>(pos));
---                                 pos = pos.offset(1);
---                             }
---                         }
---                         ::std::ptr::write_bytes(ptr, 0u8,
---                                                 ((*element_tag).struct_ref().word_size() * count + 1) as usize);
---                     }
---                 }
---             }
---             WirePointerKind::Far => { panic!("Unexpected FAR pointer") }
---         }
---     }
+        Struct -> do
+            let dataSize = structRefDataSize (toStructRef wptr)
+                pointerSection = castPtr $ ptr `advancePtr` fromIntegral dataSize :: Ptr WirePointer
+                pointerCount = structRefPtrCount (toStructRef wptr)
+                wordSize = dataSize + pointerCount
+            forM_ [0..pointerCount - 1] $ \i ->
+                zeroObject segment (pointerSection `advancePtr` fromIntegral i)
+            zeroArray ptr (fromIntegral wordSize) 
+        List -> do
+            let elemSize = listRefElementSize (toListRef wptr)
+                elemCount = listRefElementCount (toListRef wptr)
+                listWords = elemCount * (roundBitsUpToWords $ fromIntegral $ dataBitsPerElement elemSize)
+            case listRefElementSize (toListRef wptr) of
+                SzVoid -> return ()
+                SzBit -> zeroArray ptr (fromIntegral listWords)
+                SzByte -> zeroArray ptr (fromIntegral listWords)
+                SzTwoBytes -> zeroArray ptr (fromIntegral listWords)
+                SzFourBytes -> zeroArray ptr (fromIntegral listWords)
+                SzEightBytes -> zeroArray ptr (fromIntegral listWords)
+                SzPointer -> do
+                    forM_ [0..elemCount - 1] $ \i ->
+                        zeroObject segment (castPtr ptr `advancePtr` fromIntegral i)
+                    zeroArray ptr (fromIntegral elemCount)
+                SzInlineComposite -> do
+                    let elementTag = castPtr ptr :: Ptr WirePointer
+                    wptr <- peek elementTag
+                    let dataSize = (structRefDataSize $ toStructRef wptr)
+                        pointerCount = (structRefPtrCount $ toStructRef wptr)
+                        count = inlineCompositeListElementCount wptr
+                    foldM_ (\pos _ -> do
+                        let pos = pos `advancePtr` 1 :: Ptr CPWord
+                        foldM (\pos _ -> do
+                            zeroObject segment (castPtr pos)
+                            return $ pos `advancePtr` 1
+                          ) pos [0..pointerCount-1]
+                      ) (ptr `advancePtr` 1) [0..count-1]
+                    return ()
+        Far -> fail "Unexpected FAR pointer"
 
 -- TODO: assert ptr > segPtr
 getWordOffsetTo :: Segment Builder -> Ptr a -> WordCount32
@@ -997,6 +936,11 @@ instance (ListElement a) => ListElement (ListReader a) where
             ptrReader = getPointerElement reader (fromIntegral index)
 
 --------------------------------------------------------------------------------
+zeroArray :: (Zero a, Storable a) => Ptr a -> CSize -> IO ()
+zeroArray = go undefined
+  where
+    go :: (Storable a) => a -> Ptr a -> CSize -> IO ()
+    go dummy ptr count = void $ BS.memset (castPtr ptr) 0 (count * (fromIntegral $ sizeOf dummy))
 
 wordToFloat :: Word32 -> Float
 wordToFloat x = runST (cast x)
