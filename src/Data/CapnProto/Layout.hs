@@ -189,6 +189,14 @@ containsInterval segment from to =
 
 setKindAndTargetForEmptyStruct :: Ptr WirePointer -> IO ()
 setKindAndTargetForEmptyStruct ref = do
+    -- This pointer points at an empty struct. Assuming the
+    -- WirePointer itself is in-bounds, we can set the target to
+    -- point either at the WirePointer itself or immediately after
+    -- it. The latter would cause the WirePointer to be "null"
+    -- (since for an empty struct the upper 32 bits are going to
+    -- be zero). So we set an offset of -1, as if the struct were
+    -- allocated immediately before this pointer, to distinguish
+    -- it from null.
     wptr <- peek ref
     poke ref (wptr { offsetAndKind = 0xfffffffc })
 
@@ -199,10 +207,20 @@ setOffsetAndKind ref offset kind = do
     return wptr
 
 setKindAndTarget :: Ptr WirePointer -> WirePointerKind -> Ptr Word -> Segment Builder -> IO WirePointer
-setKindAndTarget ref kind target segment = do
+setKindAndTarget ref kind target segment =
     setOffsetAndKind ref offset kind
   where
-    offset = minusPtr target ref - 1
+    offset = ((target `minusPtr` ref) `div` bytesPerWord) - 1
+
+setFar :: Ptr WirePointer -> Bool -> WordCount32 -> SegmentId -> IO ()
+setFar ref doubleFar pos id = do
+    wptr <- peek ref
+    let kind = wirePointerKind wptr
+        wptr = wptr { upper32Bits = pos
+                    , offsetAndKind =  (pos `shiftL` 3)
+                                   .|. (if doubleFar then 1 `shiftL` 2 else 0)
+                                   .|. (fromIntegral $ fromEnum kind) }
+    poke ref wptr
 
 --------------------------------------------------------------------------------
 
@@ -334,8 +352,6 @@ followFars ref segment = do
                     finalWirePtr <- peek $ landingPad
                     return (finalWirePtr, contentPtr, segment')
 
---setFar :: Ptr WirePointer -> Bool ->
-setFar ref doubleFar offset = undefined
 zeroObject = undefined
 
 -- TODO: assert ptr > segPtr
