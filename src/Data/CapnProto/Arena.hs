@@ -33,6 +33,9 @@ data Segment a = Segment
   , _segmentPos       :: IORef (Ptr CPWord)
   }
 
+instance Eq (Segment a) where
+    a == b = unsafeSegmentPtr a == unsafeSegmentPtr a
+
 segmentId :: Segment Builder -> SegmentId
 segmentId = _segmentId
 

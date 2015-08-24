@@ -147,6 +147,9 @@ data WirePointer = WirePointer
 instance Nullable WirePointer where
     isNull ptr = offsetAndKind ptr == 0 && upper32Bits ptr == 0
 
+nullWirePointer :: WirePointer
+nullWirePointer = WirePointer { offsetAndKind = 0, upper32Bits = 0 }
+
 instance Storable WirePointer where
     sizeOf _ = 8
     alignment _ = 8
@@ -196,40 +199,30 @@ containsInterval segment from to =
         thisEnd = thisBegin `advancePtr` fromIntegral (segmentSize segment)
     in from >= thisBegin && to <= thisEnd && from <= to
 
-setKindAndTargetForEmptyStruct :: Ptr WirePointer -> IO ()
-setKindAndTargetForEmptyStruct ref = do
-    -- This pointer points at an empty struct. Assuming the
-    -- WirePointer itself is in-bounds, we can set the target to
-    -- point either at the WirePointer itself or immediately after
-    -- it. The latter would cause the WirePointer to be "null"
-    -- (since for an empty struct the upper 32 bits are going to
-    -- be zero). So we set an offset of -1, as if the struct were
-    -- allocated immediately before this pointer, to distinguish
-    -- it from null.
-    wptr <- peek ref
-    poke ref (wptr { offsetAndKind = 0xfffffffc })
+setKindAndTargetForEmptyStruct :: WirePointer -> WirePointer
+setKindAndTargetForEmptyStruct wptr = wptr
+    { offsetAndKind = 0xfffffffc
+    }
 
-setOffsetAndKind :: Ptr WirePointer -> Int -> WirePointerKind -> IO WirePointer
-setOffsetAndKind ref offset kind = do
-    wptr <- peek ref
-    let wptr = wptr { offsetAndKind = (fromIntegral offset `shiftL` 2)  .|. (fromIntegral $ fromEnum kind) }
-    return wptr
+setOffset :: WirePointer -> Int -> WirePointer
+setOffset wptr offset = wptr
+    { offsetAndKind = (fromIntegral offset `shiftL` 2)  .|. (offsetAndKind wptr .&. 3)
+    }
 
-setKindAndTarget :: Ptr WirePointer -> WirePointerKind -> Ptr CPWord -> Segment Builder -> IO WirePointer
-setKindAndTarget ref kind target segment =
-    setOffsetAndKind ref offset kind
-  where
-    offset = ((target `minusPtr` ref) `div` bytesPerWord) - 1
+setOffsetAndKind :: WirePointer -> Int -> WirePointerKind -> WirePointer
+setOffsetAndKind wptr offset kind = wptr
+    { offsetAndKind = (fromIntegral offset `shiftL` 2)  .|. (fromIntegral $ fromEnum kind)
+    }
 
-setFar :: Ptr WirePointer -> Bool -> WordCount32 -> SegmentId -> IO ()
-setFar ref doubleFar pos id = do
-    wptr <- peek ref
-    let kind = wirePointerKind wptr
-        wptr = wptr { upper32Bits = pos
-                    , offsetAndKind =  (pos `shiftL` 3)
-                                   .|. (if doubleFar then 1 `shiftL` 2 else 0)
-                                   .|. (fromIntegral $ fromEnum kind) }
-    poke ref wptr
+calculateTargetOffset :: Ptr WirePointer -> Ptr CPWord -> Int
+calculateTargetOffset ref target = ((target `minusPtr` ref) `div` bytesPerWord) - 1
+
+setFar :: WirePointer -> Bool -> WordCount32 -> SegmentId -> WirePointer
+setFar wptr doubleFar pos id = wptr
+    { upper32Bits = pos
+    , offsetAndKind =  (pos `shiftL` 3)
+                   .|. (if doubleFar then 1 `shiftL` 2 else 0)
+                   .|. (fromIntegral $ fromEnum (wirePointerKind wptr)) }
 
 --------------------------------------------------------------------------------
 
@@ -275,7 +268,8 @@ allocate ref segment amount kind = withSegment segment $ \_ -> do
 
     if amount == 0 && kind == Struct
       then do
-          setKindAndTargetForEmptyStruct ref
+          wptr <- peek ref
+          poke ref (setKindAndTargetForEmptyStruct wptr)
           return (ref, castPtr ref, segment)
       else segmentAllocate segment amount >>= \case
           Nothing -> do
@@ -288,17 +282,22 @@ allocate ref segment amount kind = withSegment segment $ \_ -> do
               withSegment segment $ \_ -> do
                   -- Set up the original pointer to be a far pointer to
                   -- the new segment.
-                  setFar ref False (getWordOffsetTo segment ptr) (segmentId segment)
+                  wptr <- peek ref
+                  poke ref (setFar wptr False (getWordOffsetTo segment ptr) (segmentId segment))
 
                   -- Initialize the landing pad to indicate that the
                   -- data immediately follows the pad.
                   let ref = castPtr ptr
                       ptr = ptr `plusPtr` pointerSizeInWords
-                  setKindAndTarget ref kind ptr segment
+                      offset = calculateTargetOffset ref ptr
+                  wptr <- peek ref
+                  poke ref (setOffsetAndKind wptr offset kind)
 
                   return (ref, ptr, segment)
           Just ptr -> do
-              setKindAndTarget ref kind ptr segment
+              wptr <- peek ref
+              let offset = calculateTargetOffset ref ptr
+              poke ref (setOffsetAndKind wptr offset kind)
               return (ref, ptr, segment)
 
 followBuilderFars :: Ptr WirePointer -> Segment Builder
@@ -402,7 +401,7 @@ zeroObjectHelper segment tag ptr = do
                 pointerSection = castPtr $ ptr `advancePtr` fromIntegral dataSize :: Ptr WirePointer
                 pointerCount = structRefPtrCount (toStructRef wptr)
                 wordSize = dataSize + pointerCount
-            forM_ [0..pointerCount - 1] $ \i ->
+            loop 0 pointerCount $ \i ->
                 zeroObject segment (pointerSection `advancePtr` fromIntegral i)
             zeroArray ptr (fromIntegral wordSize) 
         List -> do
@@ -417,7 +416,7 @@ zeroObjectHelper segment tag ptr = do
                 SzFourBytes -> zeroArray ptr (fromIntegral listWords)
                 SzEightBytes -> zeroArray ptr (fromIntegral listWords)
                 SzPointer -> do
-                    forM_ [0..elemCount - 1] $ \i ->
+                    loop 0 elemCount $ \i ->
                         zeroObject segment (castPtr ptr `advancePtr` fromIntegral i)
                     zeroArray ptr (fromIntegral elemCount)
                 SzInlineComposite -> do
@@ -430,9 +429,9 @@ zeroObjectHelper segment tag ptr = do
                         elemKind = wirePointerKind wptr
                     when (elemKind /= Struct) $
                         fail "Don't know how to handle non-STRUCT inline composite"
-                    loop 0 count (ptr `advancePtr` 1) $ \pos _ -> do
+                    loopFold 0 count (ptr `advancePtr` 1) $ \pos _ -> do
                         let pos = pos `advancePtr` fromIntegral dataSize :: Ptr CPWord
-                        loop 0 pointerCount pos $ \pos _ -> do
+                        loopFold 0 pointerCount pos $ \pos _ -> do
                             zeroObject segment (castPtr pos)
                             return $ pos `advancePtr` 1
                     zeroArray ptr (fromIntegral wordSize * fromIntegral count + 1)
@@ -466,7 +465,7 @@ totalSize segment ref = do
                       pointerSection = castPtr $ ptr `advancePtr` fromIntegral dataSize :: Ptr WirePointer
                       count = structRefPtrCount (toStructRef wptr)
 
-                  loop 0 count init $ \msize i ->
+                  loopFold 0 count init $ \msize i ->
                     (msize `plusMessageSize`) <$> totalSize segment (pointerSection `advancePtr` fromIntegral i)
               List -> do
                   let elemCount = listRefElementCount (toListRef wptr)
@@ -486,7 +485,7 @@ totalSize segment ref = do
                       SzPointer -> do
                           --XXX bounds check
                           let init = MessageSize { wordCount = fromIntegral elemCount, capCount = 0 }
-                          loop 0 elemCount init $ \msize i ->
+                          loopFold 0 elemCount init $ \msize i ->
                             (msize `plusMessageSize`) <$> totalSize segment (castPtr ptr `advancePtr` fromIntegral i)
                       SzInlineComposite -> do
                           let wordCount = listRefInlineCompositeWordCount (toListRef wptr)
@@ -509,9 +508,9 @@ totalSize segment ref = do
                                   fail "InlineComposite list's elements overrun its word count."
 
                                 let pos = ptr `advancePtr` pointerSizeInWords
-                                (msize, _) <- loop 0 elemCount (init, pos) $ \(msize, pos) _ -> do
+                                (msize, _) <- loopFold 0 elemCount (init, pos) $ \(msize, pos) _ -> do
                                     let pos = pos `advancePtr` fromIntegral dataSize
-                                    loop 0 pointerCount (init, pos) $ \(msize, pos) _ -> do
+                                    loopFold 0 pointerCount (init, pos) $ \(msize, pos) _ -> do
                                         msize' <- (msize `plusMessageSize`) <$> totalSize segment (castPtr pos)
                                         return (msize', pos `advancePtr` pointerSizeInWords)
                                 return msize
@@ -520,6 +519,47 @@ totalSize segment ref = do
                   if isCapability wptr
                     then return MessageSize { wordCount = 0, capCount = 1 }
                     else fail "Unknown pointer type."
+
+
+
+-- This
+--   ::std::ptr::copy_nonoverlapping(src, dst, count);
+-- Is the same as
+--   copyArray dst src count
+
+transferPointer :: Segment Builder -> Ptr WirePointer -> Segment Builder -> Ptr WirePointer -> IO ()
+transferPointer dstSegment dst srcSegment src = do
+    wptr <- peek src
+    if isNull wptr
+      then poke (castPtr dst :: Ptr CPWord) 0
+      else if wirePointerKind wptr == Far
+        then copyArray dst src 1
+        else do
+            target <- wirePointerTarget src
+            transferPointerSplit dstSegment dst srcSegment src target
+
+transferPointerSplit :: Segment Builder -> Ptr WirePointer -> Segment Builder -> Ptr WirePointer -> Ptr CPWord -> IO ()
+transferPointerSplit dstSegment dst srcSegment srcTag srcPtr =
+    if dstSegment == srcSegment
+      then do
+          srcWptr <- peek srcTag
+          dstWptr <- peek dst
+          let offset = calculateTargetOffset dst srcPtr
+          poke dst (setOffsetAndKind dstWptr offset (wirePointerKind srcWptr)) {
+                upper32Bits = upper32Bits srcWptr
+              }
+      else
+          segmentAllocate srcSegment 1 >>= \case
+            Nothing -> fail "unimplemented" -- XXX need a double-far
+            Just landingPadWord -> do
+                srcWptr <- peek srcTag
+                dstWptr <- peek dst
+                let landingPad = castPtr landingPadWord :: Ptr WirePointer
+                    offset = calculateTargetOffset landingPad srcPtr
+                poke landingPad (setOffsetAndKind nullWirePointer offset (wirePointerKind srcWptr)) {
+                        upper32Bits = upper32Bits srcWptr
+                    }
+                poke dst (setFar dstWptr False (getWordOffsetTo srcSegment landingPadWord) (segmentId srcSegment))
 
 -- TODO: assert ptr > segPtr
 getWordOffsetTo :: Segment Builder -> Ptr a -> WordCount32
@@ -1030,17 +1070,20 @@ instance (ListElement a) => ListElement (ListReader a) where
             ptrReader = getPointerElement reader (fromIntegral index)
 
 --------------------------------------------------------------------------------
-loop :: (Monad m, Num a, Eq a) => a -> a -> acc -> (acc -> a -> m acc) -> m acc
-loop start end = loop' start (/= end) (+1)
+loop :: (Monad m, Num a, Eq a) => a -> a -> (a -> m b) -> m ()
+loop start end f = loopFold start end () (\_ x -> void $ f x )
 
-loop' :: (Monad m) => a -> (a -> Bool) -> (a -> a) -> acc -> (acc -> a -> m acc) -> m acc
-loop' start cond inc acc0 f = go acc0 start
+loopFold :: (Monad m, Num a, Eq a) => a -> a -> acc -> (acc -> a -> m acc) -> m acc
+loopFold start end = loopFold' start (/= end) (+1)
+
+loopFold' :: (Monad m) => a -> (a -> Bool) -> (a -> a) -> acc -> (acc -> a -> m acc) -> m acc
+loopFold' start cond inc acc0 f = go acc0 start
   where
     go acc !x | cond x    = let macc = f acc x
                              in macc >>= \acc' -> acc' `seq` go acc' (inc x)
               | otherwise = return acc
 
-zeroArray :: (Zero a, Storable a) => Ptr a -> CSize -> IO ()
+zeroArray :: (Storable a) => Ptr a -> CSize -> IO ()
 zeroArray = go undefined
   where
     go :: (Storable a) => a -> Ptr a -> CSize -> IO ()
