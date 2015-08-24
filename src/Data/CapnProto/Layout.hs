@@ -4,6 +4,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE BangPatterns          #-}
 
 module Data.CapnProto.Layout where
 
@@ -49,6 +50,11 @@ debugSegment reader = withSegment reader $ \ptr -> do
     debug $ "SEGMENT: " <> hex
 
 --------------------------------------------------------------------------------
+
+data MessageSize = MessageSize
+  { wordCount :: Word64
+  , capCount :: Word64
+  }
 
 data ElementSize =
     SzVoid
@@ -180,6 +186,9 @@ wptrSegmentId ptr = fromIntegral (upper32Bits ptr)
 
 inlineCompositeListElementCount :: WirePointer -> ElementCount32
 inlineCompositeListElementCount ptr = offsetAndKind ptr `shiftR` 2
+
+isCapability :: WirePointer -> Bool
+isCapability wptr = wirePointerKind wptr == Other
 
 containsInterval :: Segment Reader -> Ptr CPWord -> Ptr CPWord -> Bool
 containsInterval segment from to =
@@ -421,15 +430,96 @@ zeroObjectHelper segment tag ptr = do
                         elemKind = wirePointerKind wptr
                     when (elemKind /= Struct) $
                         fail "Don't know how to handle non-STRUCT inline composite"
-                    foldM_ (\pos _ -> do
+                    loop 0 count (ptr `advancePtr` 1) $ \pos _ -> do
                         let pos = pos `advancePtr` fromIntegral dataSize :: Ptr CPWord
-                        foldM (\pos _ -> do
+                        loop 0 pointerCount pos $ \pos _ -> do
                             zeroObject segment (castPtr pos)
                             return $ pos `advancePtr` 1
-                          ) pos [0..pointerCount-1]
-                      ) (ptr `advancePtr` 1) [0..count-1]
                     zeroArray ptr (fromIntegral wordSize * fromIntegral count + 1)
         Far -> fail "Unexpected FAR pointer"
+
+zeroPointerAndFars :: Segment Builder -> Ptr WirePointer -> IO ()
+zeroPointerAndFars segment ref = do
+    wptr <- peek ref
+    when (wirePointerKind wptr == Far) $ do
+        pad <- tryGetSegment (segmentArena segment) (wptrSegmentId wptr) >>= \segment ->
+            return $ getPtrUnchecked segment (farPositionInSegment wptr)
+        let numElements = if isDoubleFar wptr then 2 else 1
+        zeroArray pad numElements
+    poke (castPtr ref :: Ptr CPWord) 0
+
+plusMessageSize :: MessageSize -> MessageSize -> MessageSize
+plusMessageSize (MessageSize a1 b1) (MessageSize a2 b2) = MessageSize (a1 + a2) (b1 + b2)
+
+totalSize :: Segment Reader -> Ptr WirePointer -> IO MessageSize
+totalSize segment ref = do
+    null <- wirePtrRefIsNull ref
+    if null
+      then return MessageSize { wordCount = 0, capCount = 0 }
+      else do
+          (wptr, ptr, segment) <- followFars ref segment
+          case wirePointerKind wptr of
+              Struct -> do
+                  -- XXX bounds check
+                  let dataSize = structRefDataSize (toStructRef wptr)
+                      init = MessageSize { wordCount = fromIntegral dataSize, capCount = 0 }
+                      pointerSection = castPtr $ ptr `advancePtr` fromIntegral dataSize :: Ptr WirePointer
+                      count = structRefPtrCount (toStructRef wptr)
+
+                  loop 0 count init $ \msize i ->
+                    (msize `plusMessageSize`) <$> totalSize segment (pointerSection `advancePtr` fromIntegral i)
+              List -> do
+                  let elemCount = listRefElementCount (toListRef wptr)
+                      elemSize = listRefElementSize (toListRef wptr)
+                      totalWords = roundBitsUpToWords (fromIntegral elemCount * fromIntegral (dataBitsPerElement elemSize))
+                      commonCase =
+                          --XXX bounds check
+                          return MessageSize { wordCount = fromIntegral totalWords, capCount = 0 }
+
+                  case listRefElementSize (toListRef wptr) of
+                      SzVoid -> return MessageSize { wordCount = 0, capCount = 0 }
+                      SzBit -> commonCase
+                      SzByte -> commonCase
+                      SzTwoBytes -> commonCase
+                      SzFourBytes -> commonCase
+                      SzEightBytes -> commonCase
+                      SzPointer -> do
+                          --XXX bounds check
+                          let init = MessageSize { wordCount = fromIntegral elemCount, capCount = 0 }
+                          loop 0 elemCount init $ \msize i ->
+                            (msize `plusMessageSize`) <$> totalSize segment (castPtr ptr `advancePtr` fromIntegral i)
+                      SzInlineComposite -> do
+                          let wordCount = listRefInlineCompositeWordCount (toListRef wptr)
+                              init = MessageSize { wordCount = fromIntegral wordCount, capCount = 0 }
+                          if wordCount == 0
+                            then return init
+                            else do
+                                let wordCount = listRefInlineCompositeWordCount $ toListRef wptr
+                                    elementTag = castPtr ptr :: Ptr WirePointer
+                                wptr <- peek elementTag
+                                let count = inlineCompositeListElementCount wptr
+                                    dataSize = structRefDataSize $ toStructRef wptr
+                                    pointerCount = structRefPtrCount $ toStructRef wptr
+                                    wordSize = dataSize + pointerCount
+
+                                when (wirePointerKind wptr /= Struct) $
+                                  fail "Don't know how to handle non-STRUCT inline composite."
+
+                                when (fromIntegral wordSize * count > wordCount) $
+                                  fail "InlineComposite list's elements overrun its word count."
+
+                                let pos = ptr `advancePtr` pointerSizeInWords
+                                (msize, _) <- loop 0 elemCount (init, pos) $ \(msize, pos) _ -> do
+                                    let pos = pos `advancePtr` fromIntegral dataSize
+                                    loop 0 pointerCount (init, pos) $ \(msize, pos) _ -> do
+                                        msize' <- (msize `plusMessageSize`) <$> totalSize segment (castPtr pos)
+                                        return (msize', pos `advancePtr` pointerSizeInWords)
+                                return msize
+              Far -> fail "Unexpected FAR pointer."
+              Other ->
+                  if isCapability wptr
+                    then return MessageSize { wordCount = 0, capCount = 1 }
+                    else fail "Unknown pointer type."
 
 -- TODO: assert ptr > segPtr
 getWordOffsetTo :: Segment Builder -> Ptr a -> WordCount32
@@ -940,6 +1030,16 @@ instance (ListElement a) => ListElement (ListReader a) where
             ptrReader = getPointerElement reader (fromIntegral index)
 
 --------------------------------------------------------------------------------
+loop :: (Monad m, Num a, Eq a) => a -> a -> acc -> (acc -> a -> m acc) -> m acc
+loop start end = loop' start (/= end) (+1)
+
+loop' :: (Monad m) => a -> (a -> Bool) -> (a -> a) -> acc -> (acc -> a -> m acc) -> m acc
+loop' start cond inc acc0 f = go acc0 start
+  where
+    go acc !x | cond x    = let macc = f acc x
+                             in macc >>= \acc' -> acc' `seq` go acc' (inc x)
+              | otherwise = return acc
+
 zeroArray :: (Zero a, Storable a) => Ptr a -> CSize -> IO ()
 zeroArray = go undefined
   where
