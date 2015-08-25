@@ -123,6 +123,11 @@ toStructRef :: WirePointer -> StructRef
 toStructRef ptr = StructRef (fromIntegral (upper32Bits ptr))
                             (fromIntegral ((upper32Bits ptr) `shiftR` 16))
 
+setStructRef :: WirePointer -> WordCount16 -> WordCount16 -> WirePointer
+setStructRef wptr dataSize pointerCount = wptr
+    { upper32Bits = fromIntegral dataSize .|. (fromIntegral pointerCount) `shiftL` 16
+    }
+
 --------------------------------------------------------------------------------
 
 class Union a where
@@ -587,6 +592,59 @@ initStructPointer ref segment size = do
         (castPtr $ ptr `advancePtr` (fromIntegral $ structSizeData size))
         ((fromIntegral $ structSizeData size) * fromIntegral bitsPerWord)
         (structSizePointers size)
+
+getWritableStructPointer :: Ptr WirePointer -> Segment Builder -> StructSize -> Ptr CPWord -> IO StructBuilder
+getWritableStructPointer ref segment size defaultValue = do
+    wptr <- peek ref
+    refTarget <- wirePointerTarget ref
+    if isNull wptr
+      then do
+          null <- wirePtrRefIsNull (castPtr defaultValue)
+          if null
+             then initStructPointer ref segment size
+             else fail "unimplemented"
+      else do
+          (oldRef, oldPtr, oldSegment) <- followBuilderFars ref segment
+          oldRefWptr <- peek oldRef
+          when  (wirePointerKind oldRefWptr /= Struct) $
+            fail "Message contains non-struct pointer where struct pointer was expected."
+          let oldDataSize = structRefDataSize (toStructRef oldRefWptr)
+              oldPointerCount = structRefPtrCount (toStructRef oldRefWptr)
+              oldPointerSection = castPtr $ oldPtr `advancePtr` fromIntegral oldDataSize :: Ptr WirePointer
+          if oldDataSize < structSizeData size || oldPointerCount < structSizePointers size
+            then do
+                let newDataSize = max oldDataSize (structSizeData size)
+                    newPointerCount = max oldPointerCount (structSizePointers size)
+                    totalSize = fromIntegral newDataSize + fromIntegral newPointerCount :: WordCount32
+
+                zeroPointerAndFars segment ref
+                (ref, ptr, segment) <- allocate ref segment totalSize Struct
+
+                poke ref (setStructRef wptr newDataSize newPointerCount)
+
+                copyArray ptr oldPtr (fromIntegral oldDataSize)
+
+                let newPointerSection = castPtr $ ptr `advancePtr` fromIntegral newDataSize :: Ptr WirePointer
+                loop 0 oldPointerCount $ \i ->
+                  transferPointer segment (newPointerSection `advancePtr` fromIntegral i) oldSegment (oldPointerSection `advancePtr` fromIntegral i)
+
+                zeroArray oldPtr (fromIntegral oldDataSize + fromIntegral oldPointerCount)
+
+                return $
+                  StructBuilder
+                    segment
+                    (castPtr ptr)
+                    newPointerSection
+                    (fromIntegral newDataSize * fromIntegral bitsPerWord)
+                    newPointerCount
+            else
+                return $ 
+                  StructBuilder
+                    oldSegment
+                    (castPtr oldPtr)
+                    oldPointerSection
+                    (fromIntegral oldDataSize * fromIntegral bitsPerWord)
+                    oldPointerCount
 
 -- TODO: assert ptr > segPtr
 getWordOffsetTo :: Segment Builder -> Ptr a -> WordCount32
