@@ -83,6 +83,14 @@ data StructReader = StructReader
   , structReaderPtrCount :: WirePointerCount16
   }
 
+data StructBuilder = StructBuilder
+  { structBuilderSegment  :: Segment Builder
+  , structBuilderData     :: Ptr Word8
+  , structBuilderPointers :: Ptr WirePointer
+  , structBuilderDataSize :: BitCount32
+  , structBuilderPtrCount :: WirePointerCount16
+  }
+
 data UntypedListReader = UntypedListReader
   { untypedListReaderSegment        :: Segment Reader
   , untypedListReaderData           :: Ptr Word8
@@ -258,7 +266,7 @@ boundsCheck segment start end kind =
 
 allocate :: Ptr WirePointer -> Segment Builder -> WordCount32 -> WirePointerKind
          -> IO ( Ptr WirePointer -- The wire-ptr ref
-               , Ptr CPWord        -- The content
+               , Ptr CPWord      -- The content
                , Segment Builder -- The segment builder
                )
 allocate ref segment amount kind = withSegment segment $ \_ -> do
@@ -560,6 +568,25 @@ transferPointerSplit dstSegment dst srcSegment srcTag srcPtr =
                         upper32Bits = upper32Bits srcWptr
                     }
                 poke dst (setFar dstWptr False (getWordOffsetTo srcSegment landingPadWord) (segmentId srcSegment))
+
+data StructSize = StructSize
+  { structSizeData :: WordCount16
+  , structSizePointers :: WirePointerCount16
+  }
+
+structSizeTotal :: StructSize -> WordCount32
+structSizeTotal (StructSize x y) = fromIntegral x + fromIntegral y
+
+initStructPointer :: Ptr WirePointer -> Segment Builder -> StructSize -> IO StructBuilder
+initStructPointer ref segment size = do
+    (ref, ptr, segment) <- allocate ref segment (structSizeTotal size) Struct
+    return $
+      StructBuilder
+        segment
+        (castPtr ptr)
+        (castPtr $ ptr `advancePtr` (fromIntegral $ structSizeData size))
+        ((fromIntegral $ structSizeData size) * fromIntegral bitsPerWord)
+        (structSizePointers size)
 
 -- TODO: assert ptr > segPtr
 getWordOffsetTo :: Segment Builder -> Ptr a -> WordCount32
