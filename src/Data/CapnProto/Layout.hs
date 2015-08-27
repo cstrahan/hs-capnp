@@ -1034,13 +1034,13 @@ setListPointer segment ref value = do
 
         let dst = ptr `advancePtr` pointerSizeInWords :: Ptr CPWord
         let src = castPtr $ untypedListReaderData value :: Ptr WirePointer
-        loopFold 0 (untypedListReaderElementCount value) (src, dst) $ \acc _ -> do
+        loopFold 0 (untypedListReaderElementCount value) (src, dst) $ \(src, dst) _ -> do
             copyArray (castPtr dst) src (fromIntegral (untypedListReaderStructDataSize value `div` fromIntegral bitsPerWord))
 
             let dst = dst `advancePtr` fromIntegral dataSize
                 src = src `advancePtr` fromIntegral dataSize
 
-            (src, dst) <- loopFold 0 pointerCount (src, dst) $ \acc _ -> do
+            (src, dst) <- loopFold 0 pointerCount (src, dst) $ \(src, dst) _ -> do
                 copyPointer segment (castPtr dst) (untypedListReaderSegment value) (castPtr src)
 
                 let dst = dst `advancePtr` fromIntegral pointerSizeInWords
