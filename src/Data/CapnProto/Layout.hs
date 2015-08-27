@@ -323,7 +323,8 @@ allocate ref segment amount kind = withSegment segment $ \_ -> do
     if amount == 0 && kind == Struct
       then do
           ref' <- peek ref
-          poke ref (setKindAndTargetForEmptyStruct ref')
+          ref' <- return $ setKindAndTargetForEmptyStruct ref'
+          poke ref ref'
           return (ref, castPtr ref, segment)
       else segmentAllocate segment amount >>= \case
           Nothing -> do
@@ -337,7 +338,8 @@ allocate ref segment amount kind = withSegment segment $ \_ -> do
                   -- Set up the original pointer to be a far pointer to
                   -- the new segment.
                   ref' <- peek ref
-                  poke ref (setFar ref' False (getWordOffsetTo segment ptr) (segmentId segment))
+                  ref' <- return $ setFar ref' False (getWordOffsetTo segment ptr) (segmentId segment)
+                  poke ref ref'
 
                   -- Initialize the landing pad to indicate that the
                   -- data immediately follows the pad.
@@ -345,13 +347,15 @@ allocate ref segment amount kind = withSegment segment $ \_ -> do
                       ptr = ptr `plusPtr` pointerSizeInWords
                       offset = calculateTargetOffset ref ptr
                   ref' <- peek ref
-                  poke ref (setOffsetAndKind ref' offset kind)
+                  ref' <- return $ setOffsetAndKind ref' offset kind
+                  poke ref ref'
 
                   return (ref, ptr, segment)
           Just ptr -> do
               ref' <- peek ref
               let offset = calculateTargetOffset ref ptr
-              poke ref (setOffsetAndKind ref' offset kind)
+              ref' <- return $ setOffsetAndKind ref' offset kind
+              poke ref ref'
               return (ref, ptr, segment)
 
 followBuilderFars :: Ptr WirePointer -> Segment Builder
@@ -600,9 +604,9 @@ transferPointerSplit dstSegment dst srcSegment srcTag srcPtr =
           srcTag' <- peek srcTag
           dst' <- peek dst
           let offset = calculateTargetOffset dst srcPtr
-          poke dst (setOffsetAndKind dst' offset (wirePointerKind srcTag')) {
-                upper32Bits = upper32Bits srcTag'
-              }
+          dst' <- return $ setOffsetAndKind dst' offset (wirePointerKind srcTag')
+          dst' <- return $ dst' { upper32Bits = upper32Bits srcTag' }
+          poke dst dst'
       else
           segmentAllocate srcSegment 1 >>= \case
             Nothing -> fail "unimplemented" -- XXX need a double-far
@@ -611,10 +615,12 @@ transferPointerSplit dstSegment dst srcSegment srcTag srcPtr =
                 dst' <- peek dst
                 let landingPad = castPtr landingPadWord :: Ptr WirePointer
                     offset = calculateTargetOffset landingPad srcPtr
-                poke landingPad (setOffsetAndKind nullWirePointer offset (wirePointerKind srcTag')) {
-                        upper32Bits = upper32Bits srcTag'
-                    }
-                poke dst (setFar dst' False (getWordOffsetTo srcSegment landingPadWord) (segmentId srcSegment))
+                landingPad' <- return $ setOffsetAndKind nullWirePointer offset (wirePointerKind srcTag')
+                landingPad' <- return $ landingPad' { upper32Bits = upper32Bits srcTag' }
+                poke landingPad landingPad'
+
+                dst' <- return $ setFar dst' False (getWordOffsetTo srcSegment landingPadWord) (segmentId srcSegment)
+                poke dst dst'
 
 data StructSize = StructSize
   { structSizeData :: WordCount16
@@ -661,8 +667,10 @@ getWritableStructPointer ref segment size defaultValue = do
 
                 zeroPointerAndFars segment ref
                 (ref, ptr, segment) <- allocate ref segment totalSize Struct
+                ref' <- peek ref
 
-                poke ref (setStructRef ref' newDataSize newPointerCount)
+                ref' <- return $ setStructRef ref' newDataSize newPointerCount
+                poke ref ref'
 
                 copyArray ptr oldPtr (fromIntegral oldDataSize)
 
@@ -699,7 +707,8 @@ initListPointer ref segment elemCount elemSize = do
     (ref, ptr, segment) <- allocate ref segment wordCount List
     ref' <- peek ref
 
-    poke ref (setListRef ref' elemSize elemCount)
+    ref' <- return $ setListRef ref' elemSize elemCount
+    poke ref ref'
 
     return $
       UntypedListBuilder
@@ -721,8 +730,11 @@ initStructListPointer ref segment elemCount elemSize = do
     ptr' <- peek ptr
 
     -- Initialize the pointer.
-    poke ref (setListRef ref' SzInlineComposite wordCount)
-    poke ptr (setStructRef (setKindAndInlineCompositeListElementCount ptr' Struct elemCount) (structSizeData elemSize) (structSizePointers elemSize))
+    ref' <- return $ setInlineComposite ref' wordCount
+    poke ref ref'
+    ptr' <- return $ setKindAndInlineCompositeListElementCount ptr' Struct elemCount
+    ptr' <- return $ setStructRef ptr' (structSizeData elemSize) (structSizePointers elemSize)
+    poke ptr ptr'
 
     let ptr1 = ptr `advancePtr` 1
 
@@ -865,7 +877,8 @@ initTextPointer ref segment size = do
 
     -- Initialize the pointer.
     ref' <- peek ref
-    poke ref (setListRef ref' SzByte byteSize)
+    ref' <- return $ setListRef ref' SzByte byteSize
+    poke ref ref'
 
     let bs = BS.fromForeignPtr (segmentForeignPtr segment) (ptr `minusPtr` unsafeSegmentPtr segment) (fromIntegral byteSize)
     return $ TextBuilder bs
@@ -916,7 +929,8 @@ initDataPointer ref segment size = do
 
     -- Initialize the pointer.
     ref' <- peek ref
-    poke ref $ setListRef ref' SzByte size
+    ref' <- return $ setListRef ref' SzByte size
+    poke ref ref'
 
     let bs = BS.fromForeignPtr (segmentForeignPtr segment) (ptr `minusPtr` unsafeSegmentPtr segment) (fromIntegral size)
     return $ DataBuilder bs
@@ -963,7 +977,8 @@ setStructPointer segment ref value = do
 
     (ref, ptr, segment) <- allocate ref segment totalSize Struct
     ref' <- peek ref
-    poke ref $ setStructRef ref' (fromIntegral dataSize) (fromIntegral pointerCount)
+    ref' <- return $ setStructRef ref' (fromIntegral dataSize) (fromIntegral pointerCount)
+    poke ref ref'
 
     if structReaderDataSize value == 1
       then do
@@ -991,7 +1006,8 @@ setListPointer segment ref value = do
         if untypedListReaderStructPtrCount value == 1
           then do
               -- List of pointers.
-              poke ref $ setListRef ref' SzPointer (untypedListReaderElementCount value)
+              ref' <- return $ setListRef ref' SzPointer (untypedListReaderElementCount value)
+              poke ref ref'
               loop 0 (untypedListReaderElementCount value) $ \i ->
                 copyPointer
                     segment
@@ -1010,14 +1026,16 @@ setListPointer segment ref value = do
                         64 -> return SzEightBytes
                         _ -> fail $ "invalid list step size: "<>show (untypedListReaderStep value)
 
-              poke ref $ setListRef ref' elemSize (untypedListReaderElementCount value)
+              ref' <- return $ setListRef ref' elemSize (untypedListReaderElementCount value)
+              poke ref ref'
               copyArray (untypedListReaderData value) (castPtr ptr) (fromIntegral totalSize)
         return ptr
       else do
         -- List of structs
         (ref, ptr, segment) <- allocate ref segment (totalSize + fromIntegral pointerSizeInWords) List
         ref' <- peek ref
-        poke ref $ setInlineComposite ref' totalSize
+        ref' <- return $ setInlineComposite ref' totalSize
+        poke ref ref'
 
         let dataSize = roundBitsUpToWords (fromIntegral $ untypedListReaderStructDataSize value)
             pointerCount = untypedListReaderStructPtrCount value
