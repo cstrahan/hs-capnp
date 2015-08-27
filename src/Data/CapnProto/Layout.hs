@@ -226,8 +226,8 @@ nonFarOffset = (`shiftR` 2) . fromIntegral . offsetAndKind
 
 wirePointerTarget :: Ptr WirePointer -> IO (Ptr CPWord)
 wirePointerTarget ref = do
-    wptr <- peek ref
-    return $ (castPtr ref :: Ptr CPWord) `advancePtr` (nonFarOffset wptr + 1)
+    ref' <- peek ref
+    return $ (castPtr ref :: Ptr CPWord) `advancePtr` (nonFarOffset ref' + 1)
 
 farPositionInSegment :: WirePointer -> WordCount32
 farPositionInSegment = (`shiftR` 3) . offsetAndKind
@@ -322,8 +322,8 @@ allocate ref segment amount kind = withSegment segment $ \_ -> do
 
     if amount == 0 && kind == Struct
       then do
-          wptr <- peek ref
-          poke ref (setKindAndTargetForEmptyStruct wptr)
+          ref' <- peek ref
+          poke ref (setKindAndTargetForEmptyStruct ref')
           return (ref, castPtr ref, segment)
       else segmentAllocate segment amount >>= \case
           Nothing -> do
@@ -336,22 +336,22 @@ allocate ref segment amount kind = withSegment segment $ \_ -> do
               withSegment segment $ \_ -> do
                   -- Set up the original pointer to be a far pointer to
                   -- the new segment.
-                  wptr <- peek ref
-                  poke ref (setFar wptr False (getWordOffsetTo segment ptr) (segmentId segment))
+                  ref' <- peek ref
+                  poke ref (setFar ref' False (getWordOffsetTo segment ptr) (segmentId segment))
 
                   -- Initialize the landing pad to indicate that the
                   -- data immediately follows the pad.
                   let ref = castPtr ptr
                       ptr = ptr `plusPtr` pointerSizeInWords
                       offset = calculateTargetOffset ref ptr
-                  wptr <- peek ref
-                  poke ref (setOffsetAndKind wptr offset kind)
+                  ref' <- peek ref
+                  poke ref (setOffsetAndKind ref' offset kind)
 
                   return (ref, ptr, segment)
           Just ptr -> do
-              wptr <- peek ref
+              ref' <- peek ref
               let offset = calculateTargetOffset ref ptr
-              poke ref (setOffsetAndKind wptr offset kind)
+              poke ref (setOffsetAndKind ref' offset kind)
               return (ref, ptr, segment)
 
 followBuilderFars :: Ptr WirePointer -> Segment Builder
@@ -391,51 +391,54 @@ followFars :: Ptr WirePointer -> Segment Reader
                  , Segment Reader -- The target segment, in the case of far-pointers
                  )
 followFars ref segment = do
-    wirePtr <- peek ref
+    ref' <- peek ref
     -- If the segment is null, this is an unchecked message, so there are no FAR pointers.
-    if (isNull segment) || wirePointerKind wirePtr /= Far
+    if (isNull segment) || wirePointerKind ref' /= Far
       then do
-          let contentPtr = ((castPtr ref :: Ptr CPWord) `advancePtr` (nonFarOffset wirePtr + 1))
-          return (wirePtr, contentPtr, segment)
+          let contentPtr = ((castPtr ref :: Ptr CPWord) `advancePtr` (nonFarOffset ref' + 1))
+          return (ref', contentPtr, segment)
       else do
-          segment' <- tryGetSegment (segmentArena segment) (wptrSegmentId wirePtr)
-          let padWords = if isDoubleFar wirePtr then 2 else 1
-          withSegment segment' $ \segmentPtr -> do
-              let landingPad = (castPtr segmentPtr :: Ptr WirePointer) `advancePtr` (fromIntegral (farPositionInSegment wirePtr))
+          segment <- tryGetSegment (segmentArena segment) (wptrSegmentId ref')
+          let padWords = if isDoubleFar ref' then 2 else 1
+          withSegment segment $ \segmentPtr -> do
+              let pad = (castPtr segmentPtr :: Ptr WirePointer) `advancePtr` (fromIntegral (farPositionInSegment ref'))
               -- XXX bounds check
-              if isDoubleFar wirePtr
+              if (not $ isDoubleFar ref')
                 then do
+                    let ref = pad
+                    ref' <- peek ref
+                    let contentPtr = castPtr $ pad `advancePtr` (nonFarOffset ref' + 1) :: Ptr CPWord
+                    return (ref', contentPtr, segment)
+                else do
                     -- Landing pad is another far pointer. It is
                     -- followed by a tag describing the pointed-to
                     -- object.
-                    wirePtr' <- peek landingPad
-                    segment'' <- tryGetSegment (segmentArena segment') (wptrSegmentId wirePtr')
-                    contentPtr <- withSegment segment'' (return . (`advancePtr` fromIntegral (farPositionInSegment wirePtr')))
-                    finalWirePtr <- peek $ landingPad `advancePtr` 1
-                    return (finalWirePtr, contentPtr, segment'')
-                else do
-                    wirePtr' <- peek landingPad
-                    let contentPtr = (castPtr landingPad :: Ptr CPWord) `advancePtr` (nonFarOffset wirePtr' + 1)
-                    finalWirePtr <- peek $ landingPad
-                    return (finalWirePtr, contentPtr, segment')
+                    let ref = pad `advancePtr` 1
+                    ref' <- peek ref
+
+                    pad' <- peek pad
+                    segment <- tryGetSegment (segmentArena segment) (wptrSegmentId pad')
+                    withSegment segment $ \segmentPtr -> do
+                        let contentPtr = segmentPtr `advancePtr` fromIntegral (farPositionInSegment pad')
+                        return (ref', contentPtr, segment)
 
 zeroObject :: Segment Builder -> Ptr WirePointer -> IO ()
 zeroObject segment ref = do
-    wptr <- peek ref
+    ref' <- peek ref
     let common = zeroObjectHelper segment ref =<< wirePointerTarget ref
-    case wirePointerKind wptr of
+    case wirePointerKind ref' of
         Struct -> common
         List -> common
         Other -> common
         Far -> do
-            segment <- tryGetSegment (segmentArena segment) (wptrSegmentId wptr)
-            let pad = castPtr $ getPtrUnchecked segment (farPositionInSegment wptr) :: Ptr WirePointer
-            if isDoubleFar wptr
+            segment <- tryGetSegment (segmentArena segment) (wptrSegmentId ref')
+            let pad = castPtr $ getPtrUnchecked segment (farPositionInSegment ref') :: Ptr WirePointer
+            if isDoubleFar ref'
               then do
-                  wptr <- peek pad
-                  segment <- tryGetSegment (segmentArena segment) (wptrSegmentId wptr)
+                  pad' <- peek pad
+                  segment <- tryGetSegment (segmentArena segment) (wptrSegmentId pad')
 
-                  let content = getPtrUnchecked segment (farPositionInSegment wptr)
+                  let content = getPtrUnchecked segment (farPositionInSegment pad')
 
                   zeroObjectHelper segment (pad `advancePtr` 1) content
 
@@ -447,22 +450,22 @@ zeroObject segment ref = do
 
 zeroObjectHelper :: Segment Builder -> Ptr WirePointer -> Ptr CPWord -> IO ()
 zeroObjectHelper segment tag ptr = do
-    wptr <- peek tag
-    case wirePointerKind wptr of
+    tag' <- peek tag
+    case wirePointerKind tag' of
         Other -> fail "Don't know how to handle OTHER"
         Struct -> do
-            let dataSize = structRefDataSize (toStructRef wptr)
+            let dataSize = structRefDataSize (toStructRef tag')
                 pointerSection = castPtr $ ptr `advancePtr` fromIntegral dataSize :: Ptr WirePointer
-                pointerCount = structRefPtrCount (toStructRef wptr)
+                pointerCount = structRefPtrCount (toStructRef tag')
                 wordSize = dataSize + pointerCount
             loop 0 pointerCount $ \i ->
                 zeroObject segment (pointerSection `advancePtr` fromIntegral i)
             zeroArray ptr (fromIntegral wordSize)
         List -> do
-            let elemSize = listRefElementSize (toListRef wptr)
-                elemCount = listRefElementCount (toListRef wptr)
+            let elemSize = listRefElementSize (toListRef tag')
+                elemCount = listRefElementCount (toListRef tag')
                 listWords = elemCount * (roundBitsUpToWords $ fromIntegral $ dataBitsPerElement elemSize)
-            case listRefElementSize (toListRef wptr) of
+            case listRefElementSize (toListRef tag') of
                 SzVoid -> return ()
                 SzBit -> zeroArray ptr (fromIntegral listWords)
                 SzByte -> zeroArray ptr (fromIntegral listWords)
@@ -475,12 +478,12 @@ zeroObjectHelper segment tag ptr = do
                     zeroArray ptr (fromIntegral elemCount)
                 SzInlineComposite -> do
                     let elementTag = castPtr ptr :: Ptr WirePointer
-                    wptr <- peek elementTag
-                    let dataSize = (structRefDataSize $ toStructRef wptr)
-                        pointerCount = (structRefPtrCount $ toStructRef wptr)
-                        count = inlineCompositeListElementCount wptr
+                    elementTag' <- peek elementTag
+                    let dataSize = (structRefDataSize $ toStructRef elementTag')
+                        pointerCount = (structRefPtrCount $ toStructRef elementTag')
+                        count = inlineCompositeListElementCount elementTag'
                         wordSize = dataSize + pointerCount
-                        elemKind = wirePointerKind wptr
+                        elemKind = wirePointerKind elementTag'
                     when (elemKind /= Struct) $
                         fail "Don't know how to handle non-STRUCT inline composite"
                     loopFold 0 count (ptr `advancePtr` 1) $ \pos _ -> do
@@ -493,11 +496,11 @@ zeroObjectHelper segment tag ptr = do
 
 zeroPointerAndFars :: Segment Builder -> Ptr WirePointer -> IO ()
 zeroPointerAndFars segment ref = do
-    wptr <- peek ref
-    when (wirePointerKind wptr == Far) $ do
-        pad <- tryGetSegment (segmentArena segment) (wptrSegmentId wptr) >>= \segment ->
-            return $ getPtrUnchecked segment (farPositionInSegment wptr)
-        let numElements = if isDoubleFar wptr then 2 else 1
+    ref' <- peek ref
+    when (wirePointerKind ref' == Far) $ do
+        pad <- tryGetSegment (segmentArena segment) (wptrSegmentId ref') >>= \segment ->
+            return $ getPtrUnchecked segment (farPositionInSegment ref')
+        let numElements = if isDoubleFar ref' then 2 else 1
         zeroArray pad numElements
     poke (castPtr ref :: Ptr CPWord) 0
 
@@ -510,26 +513,26 @@ totalSize segment ref = do
     if null
       then return MessageSize { wordCount = 0, capCount = 0 }
       else do
-          (wptr, ptr, segment) <- followFars ref segment
-          case wirePointerKind wptr of
+          (ref', ptr, segment) <- followFars ref segment
+          case wirePointerKind ref' of
               Struct -> do
                   -- XXX bounds check
-                  let dataSize = structRefDataSize (toStructRef wptr)
+                  let dataSize = structRefDataSize (toStructRef ref')
                       init = MessageSize { wordCount = fromIntegral dataSize, capCount = 0 }
                       pointerSection = castPtr $ ptr `advancePtr` fromIntegral dataSize :: Ptr WirePointer
-                      count = structRefPtrCount (toStructRef wptr)
+                      count = structRefPtrCount (toStructRef ref')
 
                   loopFold 0 count init $ \msize i ->
                     (msize `plusMessageSize`) <$> totalSize segment (pointerSection `advancePtr` fromIntegral i)
               List -> do
-                  let elemCount = listRefElementCount (toListRef wptr)
-                      elemSize = listRefElementSize (toListRef wptr)
+                  let elemCount = listRefElementCount (toListRef ref')
+                      elemSize = listRefElementSize (toListRef ref')
                       totalWords = roundBitsUpToWords (fromIntegral elemCount * fromIntegral (dataBitsPerElement elemSize))
                       commonCase =
                           --XXX bounds check
                           return MessageSize { wordCount = fromIntegral totalWords, capCount = 0 }
 
-                  case listRefElementSize (toListRef wptr) of
+                  case listRefElementSize (toListRef ref') of
                       SzVoid -> return MessageSize { wordCount = 0, capCount = 0 }
                       SzBit -> commonCase
                       SzByte -> commonCase
@@ -542,20 +545,20 @@ totalSize segment ref = do
                           loopFold 0 elemCount init $ \msize i ->
                             (msize `plusMessageSize`) <$> totalSize segment (castPtr ptr `advancePtr` fromIntegral i)
                       SzInlineComposite -> do
-                          let wordCount = listRefInlineCompositeWordCount (toListRef wptr)
+                          let wordCount = listRefInlineCompositeWordCount (toListRef ref')
                               init = MessageSize { wordCount = fromIntegral wordCount, capCount = 0 }
                           if wordCount == 0
                             then return init
                             else do
-                                let wordCount = listRefInlineCompositeWordCount $ toListRef wptr
+                                let wordCount = listRefInlineCompositeWordCount $ toListRef ref'
                                     elementTag = castPtr ptr :: Ptr WirePointer
-                                wptr <- peek elementTag
-                                let count = inlineCompositeListElementCount wptr
-                                    dataSize = structRefDataSize $ toStructRef wptr
-                                    pointerCount = structRefPtrCount $ toStructRef wptr
+                                elementTag' <- peek elementTag
+                                let count = inlineCompositeListElementCount elementTag'
+                                    dataSize = structRefDataSize $ toStructRef elementTag'
+                                    pointerCount = structRefPtrCount $ toStructRef elementTag'
                                     wordSize = dataSize + pointerCount
 
-                                when (wirePointerKind wptr /= Struct) $
+                                when (wirePointerKind elementTag' /= Struct) $
                                   fail "Don't know how to handle non-STRUCT inline composite."
 
                                 when (fromIntegral wordSize * count > wordCount) $
@@ -570,11 +573,9 @@ totalSize segment ref = do
                                 return msize
               Far -> fail "Unexpected FAR pointer."
               Other ->
-                  if isCapability wptr
+                  if isCapability ref'
                     then return MessageSize { wordCount = 0, capCount = 1 }
                     else fail "Unknown pointer type."
-
-
 
 -- This
 --   ::std::ptr::copy_nonoverlapping(src, dst, count);
@@ -583,10 +584,10 @@ totalSize segment ref = do
 
 transferPointer :: Segment Builder -> Ptr WirePointer -> Segment Builder -> Ptr WirePointer -> IO ()
 transferPointer dstSegment dst srcSegment src = do
-    wptr <- peek src
-    if isNull wptr
+    src' <- peek src
+    if isNull src'
       then poke (castPtr dst :: Ptr CPWord) 0
-      else if wirePointerKind wptr == Far
+      else if wirePointerKind src' == Far
         then copyArray dst src 1
         else do
             target <- wirePointerTarget src
@@ -596,24 +597,24 @@ transferPointerSplit :: Segment Builder -> Ptr WirePointer -> Segment Builder ->
 transferPointerSplit dstSegment dst srcSegment srcTag srcPtr =
     if dstSegment == srcSegment
       then do
-          srcWptr <- peek srcTag
-          dstWptr <- peek dst
+          srcTag' <- peek srcTag
+          dst' <- peek dst
           let offset = calculateTargetOffset dst srcPtr
-          poke dst (setOffsetAndKind dstWptr offset (wirePointerKind srcWptr)) {
-                upper32Bits = upper32Bits srcWptr
+          poke dst (setOffsetAndKind dst' offset (wirePointerKind srcTag')) {
+                upper32Bits = upper32Bits srcTag'
               }
       else
           segmentAllocate srcSegment 1 >>= \case
             Nothing -> fail "unimplemented" -- XXX need a double-far
             Just landingPadWord -> do
-                srcWptr <- peek srcTag
-                dstWptr <- peek dst
+                srcTag' <- peek srcTag
+                dst' <- peek dst
                 let landingPad = castPtr landingPadWord :: Ptr WirePointer
                     offset = calculateTargetOffset landingPad srcPtr
-                poke landingPad (setOffsetAndKind nullWirePointer offset (wirePointerKind srcWptr)) {
-                        upper32Bits = upper32Bits srcWptr
+                poke landingPad (setOffsetAndKind nullWirePointer offset (wirePointerKind srcTag')) {
+                        upper32Bits = upper32Bits srcTag'
                     }
-                poke dst (setFar dstWptr False (getWordOffsetTo srcSegment landingPadWord) (segmentId srcSegment))
+                poke dst (setFar dst' False (getWordOffsetTo srcSegment landingPadWord) (segmentId srcSegment))
 
 data StructSize = StructSize
   { structSizeData :: WordCount16
@@ -636,9 +637,9 @@ initStructPointer ref segment size = do
 
 getWritableStructPointer :: Ptr WirePointer -> Segment Builder -> StructSize -> Ptr CPWord -> IO StructBuilder
 getWritableStructPointer ref segment size defaultValue = do
-    wptr <- peek ref
+    ref' <- peek ref
     refTarget <- wirePointerTarget ref
-    if isNull wptr
+    if isNull ref'
       then do
           null <- wirePtrRefIsNull (castPtr defaultValue)
           if null
@@ -646,11 +647,11 @@ getWritableStructPointer ref segment size defaultValue = do
              else fail "unimplemented"
       else do
           (oldRef, oldPtr, oldSegment) <- followBuilderFars ref segment
-          oldRefWptr <- peek oldRef
-          when  (wirePointerKind oldRefWptr /= Struct) $
+          oldRef' <- peek oldRef
+          when  (wirePointerKind oldRef' /= Struct) $
             fail "Message contains non-struct pointer where struct pointer was expected."
-          let oldDataSize = structRefDataSize (toStructRef oldRefWptr)
-              oldPointerCount = structRefPtrCount (toStructRef oldRefWptr)
+          let oldDataSize = structRefDataSize (toStructRef oldRef')
+              oldPointerCount = structRefPtrCount (toStructRef oldRef')
               oldPointerSection = castPtr $ oldPtr `advancePtr` fromIntegral oldDataSize :: Ptr WirePointer
           if oldDataSize < structSizeData size || oldPointerCount < structSizePointers size
             then do
@@ -661,7 +662,7 @@ getWritableStructPointer ref segment size defaultValue = do
                 zeroPointerAndFars segment ref
                 (ref, ptr, segment) <- allocate ref segment totalSize Struct
 
-                poke ref (setStructRef wptr newDataSize newPointerCount)
+                poke ref (setStructRef ref' newDataSize newPointerCount)
 
                 copyArray ptr oldPtr (fromIntegral oldDataSize)
 
@@ -696,9 +697,9 @@ initListPointer ref segment elemCount elemSize = do
         step = dataSize + (pointerCount * fromIntegral bitsPerPointer)
         wordCount = roundBitsUpToWords (fromIntegral elemCount * fromIntegral step)
     (ref, ptr, segment) <- allocate ref segment wordCount List
-    wptr <- peek ref
+    ref' <- peek ref
 
-    poke ref (setListRef wptr elemSize elemCount)
+    poke ref (setListRef ref' elemSize elemCount)
 
     return $
       UntypedListBuilder
@@ -716,12 +717,12 @@ initStructListPointer ref segment elemCount elemSize = do
 
     (ref, ptr_, segment) <- allocate ref segment (fromIntegral pointerSizeInWords + fromIntegral wordCount) List
     let ptr = castPtr ptr_ :: Ptr WirePointer
-    refWptr <- peek ref
-    ptrWptr <- peek ptr
+    ref' <- peek ref
+    ptr' <- peek ptr
 
     -- Initialize the pointer.
-    poke ref (setListRef refWptr SzInlineComposite wordCount)
-    poke ptr (setStructRef (setKindAndInlineCompositeListElementCount ptrWptr Struct elemCount) (structSizeData elemSize) (structSizePointers elemSize))
+    poke ref (setListRef ref' SzInlineComposite wordCount)
+    poke ptr (setStructRef (setKindAndInlineCompositeListElementCount ptr' Struct elemCount) (structSizeData elemSize) (structSizePointers elemSize))
 
     let ptr1 = ptr `advancePtr` 1
 
