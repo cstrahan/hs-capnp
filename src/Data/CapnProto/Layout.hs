@@ -282,11 +282,10 @@ setFar wptr doubleFar pos id = wptr
 
 --------------------------------------------------------------------------------
 
-getRoot :: Segment Reader -> Ptr CPWord -> Either String PointerReader
-getRoot segment location =
-    case boundsCheck segment location (location `plusPtr` pointerSizeInWords) Struct of
-        Left msg -> Left msg
-        Right _ -> Right $ PointerReader segment (castPtr location)
+getRoot :: Segment Reader -> Ptr CPWord -> IO PointerReader
+getRoot segment location = do
+    boundsCheck segment location (location `advancePtr` pointerSizeInWords) Struct
+    return $ PointerReader segment (castPtr location)
 
 --------------------------------------------------------------------------------
 -- wire helpers
@@ -300,15 +299,14 @@ roundBitsUpToWords bits = fromIntegral $ (bits + 63) `div` fromIntegral bitsPerW
 roundBitsUpToBytes :: BitCount64 -> ByteCount32
 roundBitsUpToBytes bytes = fromIntegral $ (bytes + 7) `div` fromIntegral bitsPerByte
 
-boundsCheck :: Segment Reader -> Ptr CPWord -> Ptr CPWord -> WirePointerKind -> Either String ()
+boundsCheck :: Segment Reader -> Ptr CPWord -> Ptr CPWord -> WirePointerKind -> IO ()
 boundsCheck segment start end kind =
-    if isNull segment || containsInterval segment start end
-      then Right ()
-      else Left $ case kind of
-                   List -> "Message contained out-of-bounds list pointer."
-                   Struct -> "Message contained out-of-bounds struct pointer."
-                   Far -> "Message contained out-of-bounds far pointer."
-                   Other -> "Message contained out-of-bounds other pointer."
+    unless (isNull segment || containsInterval segment start end) $
+      fail $ case kind of
+                    List -> "Message contained out-of-bounds list pointer."
+                    Struct -> "Message contained out-of-bounds struct pointer."
+                    Far -> "Message contained out-of-bounds far pointer."
+                    Other -> "Message contained out-of-bounds other pointer."
 
 --------------------------------------------------------------------------------
 

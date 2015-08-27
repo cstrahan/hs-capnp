@@ -58,9 +58,7 @@ readSegmentTable read = do
 getRoot :: FromStructReader a => MessageReader -> IO a
 getRoot (MessageReader arena) = do
     segment <- getFirstSegment arena
-    withSegment segment $ \ptr ->
-         case L.getRoot segment (unsafeSegmentPtr segment) of
-             Right pointerReader -> do
-                 struct <- getStruct pointerReader nullPtr
-                 fromStructReader struct
-             Left msg -> fail msg
+    withSegment segment $ \ptr -> do
+        pointerReader <- L.getRoot segment (unsafeSegmentPtr segment)
+        struct <- getStruct pointerReader nullPtr
+        fromStructReader struct
