@@ -5,6 +5,7 @@
 {-# LANGUAGE TypeFamilies          #-}
 {-# LANGUAGE LambdaCase            #-}
 {-# LANGUAGE BangPatterns          #-}
+{-# LANGUAGE OverloadedStrings     #-}
 
 module Data.CapnProto.Layout where
 
@@ -71,8 +72,16 @@ newtype TextReader = TextReader
   { textReaderData :: Maybe BS.ByteString
   }
 
+newtype TextBuilder = TextBuilder
+  { textBuilderData :: BS.ByteString
+  }
+
 newtype DataReader = DataReader
   { dataReaderData :: Maybe BS.ByteString
+  }
+
+newtype DataBuilder = DataBuilder
+  { dataBuilderData :: BS.ByteString
   }
 
 data StructReader = StructReader
@@ -100,6 +109,23 @@ data UntypedListReader = UntypedListReader
   , untypedListReaderStructPtrCount :: WirePointerCount16
   }
 
+data UntypedListBuilder = UntypedListBuilder
+  { untypedListBuilderSegment        :: Segment Builder
+  , untypedListBuilderData           :: Ptr Word8
+  , untypedListBuilderElementCount   :: ElementCount32
+  , untypedListBuilderStep           :: BitCount32
+  , untypedListBuilderStructDataSize :: BitCount32
+  , untypedListBuilderStructPtrCount :: WirePointerCount16
+  }
+
+nullUntypedListBuilder = UntypedListBuilder
+    nullSegmentBuilder
+    nullPtr
+    0
+    0
+    0
+    0
+
 data StructRef = StructRef
     { structRefDataSize :: WordCount16
     , structRefPtrCount :: WirePointerCount16
@@ -118,6 +144,12 @@ toListRef :: WirePointer -> ListRef
 toListRef ptr = ListRef (toEnum (fromIntegral ((upper32Bits ptr) .&. 7)))
                         ((upper32Bits ptr) `shiftR` 3)
                         ((upper32Bits ptr) `shiftR` 3)
+
+-- XXX assert!(ec < (1 << 29), "Lists are limited to 2**29 elements");
+setListRef :: WirePointer -> ElementSize -> ElementCount32 -> WirePointer
+setListRef wptr elemSize elemCount = wptr
+    { upper32Bits = ((fromIntegral (fromEnum elemSize)) .&. 7) .|. ((upper32Bits wptr) `shiftL` 3)
+    }
 
 toStructRef :: WirePointer -> StructRef
 toStructRef ptr = StructRef (fromIntegral (upper32Bits ptr))
@@ -225,6 +257,11 @@ setOffset wptr offset = wptr
 setOffsetAndKind :: WirePointer -> Int -> WirePointerKind -> WirePointer
 setOffsetAndKind wptr offset kind = wptr
     { offsetAndKind = (fromIntegral offset `shiftL` 2)  .|. (fromIntegral $ fromEnum kind)
+    }
+
+setKindAndInlineCompositeListElementCount :: WirePointer -> WirePointerKind -> ElementCount32 -> WirePointer
+setKindAndInlineCompositeListElementCount wptr kind elemCount = wptr
+    { offsetAndKind = (fromIntegral elemCount `shiftL` 2)  .|. (fromIntegral $ fromEnum kind)
     }
 
 calculateTargetOffset :: Ptr WirePointer -> Ptr CPWord -> Int
@@ -416,7 +453,7 @@ zeroObjectHelper segment tag ptr = do
                 wordSize = dataSize + pointerCount
             loop 0 pointerCount $ \i ->
                 zeroObject segment (pointerSection `advancePtr` fromIntegral i)
-            zeroArray ptr (fromIntegral wordSize) 
+            zeroArray ptr (fromIntegral wordSize)
         List -> do
             let elemSize = listRefElementSize (toListRef wptr)
                 elemCount = listRefElementCount (toListRef wptr)
@@ -638,13 +675,510 @@ getWritableStructPointer ref segment size defaultValue = do
                     (fromIntegral newDataSize * fromIntegral bitsPerWord)
                     newPointerCount
             else
-                return $ 
+                return $
                   StructBuilder
                     oldSegment
                     (castPtr oldPtr)
                     oldPointerSection
                     (fromIntegral oldDataSize * fromIntegral bitsPerWord)
                     oldPointerCount
+
+initListPointer :: Ptr WirePointer -> Segment Builder -> ElementCount32 -> ElementSize -> IO UntypedListBuilder
+initListPointer ref segment elemCount elemSize = do
+    when (elemSize /= SzInlineComposite) $
+      fail "Should have called initStructListPointer instead"
+    let dataSize = dataBitsPerElement elemSize
+        pointerCount = pointersPerElement elemSize
+        step = dataSize + (pointerCount * fromIntegral bitsPerPointer)
+        wordCount = roundBitsUpToWords (fromIntegral elemCount * fromIntegral step)
+    (ref, ptr, segment) <- allocate ref segment wordCount List
+    wptr <- peek ref
+
+    poke ref (setListRef wptr elemSize elemCount)
+
+    return $
+      UntypedListBuilder
+        segment
+        (castPtr ptr)
+        step
+        elemCount
+        dataSize
+        (fromIntegral pointerCount)
+
+initStructListPointer :: Ptr WirePointer -> Segment Builder -> ElementCount32 -> StructSize -> IO UntypedListBuilder
+initStructListPointer ref segment elemCount elemSize = do
+    let wordsPerElement = structSizeTotal elemSize
+        wordCount = elemCount * wordsPerElement
+
+    (ref, ptr_, segment) <- allocate ref segment (fromIntegral pointerSizeInWords + fromIntegral wordCount) List
+    let ptr = castPtr ptr_ :: Ptr WirePointer
+    refWptr <- peek ref
+    ptrWptr <- peek ptr
+
+    -- Initialize the pointer.
+    poke ref (setListRef refWptr SzInlineComposite wordCount)
+    poke ptr (setStructRef (setKindAndInlineCompositeListElementCount ptrWptr Struct elemCount) (structSizeData elemSize) (structSizePointers elemSize))
+
+    let ptr1 = ptr `advancePtr` 1
+
+    return $
+      UntypedListBuilder
+        segment
+        (castPtr ptr1)
+        (wordsPerElement * fromIntegral bitsPerWord)
+        elemCount
+        (fromIntegral (structSizeData elemSize) * fromIntegral bitsPerWord)
+        (structSizePointers elemSize)
+
+getWritableListPointer :: Ptr WirePointer -> Segment Builder -> ElementSize -> Ptr CPWord -> IO UntypedListBuilder
+getWritableListPointer origRef origSegment elemSize defaultValue = do
+    origRef' <- peek origRef
+    origRefTarget <- wirePointerTarget origRef
+    if isNull origRef'
+      then do
+          null <- wirePtrRefIsNull (castPtr defaultValue)
+          if null
+            then return nullUntypedListBuilder
+            else fail "unimplemented"
+      else do
+          let ref = origRef
+              segment = origSegment
+
+          (ref, ptr, segment) <- followBuilderFars ref segment
+
+          ref' <- peek ref
+          when (wirePointerKind ref' /= List) $
+            fail "Called get_list_{{field,element}}() but existing pointer is not a list."
+
+          let oldSize = listRefElementSize (toListRef ref')
+
+          if oldSize == SzInlineComposite
+            then do
+                let tag = castPtr ptr :: Ptr WirePointer
+                tag' <- peek tag
+
+                when (wirePointerKind tag' /= Struct) $
+                  fail "InlineComposite list with non-STRUCT elements not supported."
+
+                ptr <- return $ ptr `advancePtr` pointerSizeInWords
+
+                let dataSize = structRefDataSize $ toStructRef tag'
+                    pointerCount = structRefPtrCount $ toStructRef tag'
+                    listFromPtr ptr =
+                        UntypedListBuilder
+                            segment
+                            ptr
+                            (inlineCompositeListElementCount tag')
+                            (wordSize (toStructRef tag') * fromIntegral bitsPerWord)
+                            (fromIntegral dataSize * fromIntegral bitsPerWord)
+                            pointerCount
+                    commonCase = do
+                        when (dataSize < 1) $ fail "Existing list value is incompatible with expected type."
+                        return $ listFromPtr $ castPtr ptr
+
+                case elemSize of
+                    SzVoid -> return $ listFromPtr $ castPtr ptr
+                    SzBit -> fail "Found struct list where bit list was expected."
+                    SzByte -> commonCase
+                    SzTwoBytes -> commonCase
+                    SzFourBytes -> commonCase
+                    SzEightBytes -> commonCase
+                    SzPointer -> do
+                        when (pointerCount < 1) $ fail "Existing list value is incompatible with expected type."
+                        return $ listFromPtr $ (castPtr ptr) `advancePtr` 1
+                    SzInlineComposite -> fail "The impossible happened."
+            else do
+                let dataSize = dataBitsPerElement oldSize
+                    pointerCount = pointersPerElement oldSize
+                    step = dataSize * pointerCount * fromIntegral bitsPerPointer
+                when (dataSize < dataBitsPerElement elemSize || pointerCount < pointersPerElement elemSize) $
+                  fail "Existing list value is incompatible with expected type."
+
+                return $
+                  UntypedListBuilder
+                    segment
+                    (castPtr ptr)
+                    step
+                    (listRefElementCount (toListRef ref'))
+                    dataSize
+                    (fromIntegral pointerCount)
+
+getWritableStructListPointer :: Ptr WirePointer -> Segment Builder -> StructSize -> Ptr CPWord -> IO UntypedListBuilder
+getWritableStructListPointer origRef origSegment elemSize defaultValue = do
+    origRef' <- peek origRef
+    origRefTarget <- wirePointerTarget origRef
+
+    if isNull origRef'
+      then
+          if defaultValue == nullPtr
+            then return nullUntypedListBuilder
+            else fail "unimplemented"
+      else do
+          -- We must verify that the pointer has the right size and potentially upgrade it if not.
+          (oldRef, oldPtr, oldSegment) <- followBuilderFars origRef origSegment
+          oldRef' <- peek oldRef
+
+          when (wirePointerKind oldRef' /= List) $
+            fail "Called getList{{Field,Element}} but existing pointer is not a list."
+
+          let oldSize = listRefElementSize $ toListRef oldRef'
+
+          if oldSize == SzInlineComposite
+            then do
+                -- Existing list is InlineComposite, but we need to verify that the sizes match.
+                let oldTag = castPtr oldPtr :: Ptr WirePointer
+                oldPtr <- return $ oldPtr `advancePtr` pointerSizeInWords
+                oldTag' <- peek oldTag
+                when (wirePointerKind oldTag' /= Struct) $
+                  fail "InlineComposite list with non-STRUCT elements not supported."
+
+                let oldDataSize = structRefDataSize $ toStructRef oldTag'
+                    oldPointerCount = structRefPtrCount $ toStructRef oldTag'
+                    oldStep = oldDataSize + oldPointerCount
+                    elemCount = inlineCompositeListElementCount oldTag'
+
+                if oldDataSize >= structSizeData elemSize && oldPointerCount >= structSizePointers elemSize
+                  then
+                    -- Old size is at least as large as we need. Ship it.
+                    return $ UntypedListBuilder
+                        oldSegment
+                        (castPtr oldPtr)
+                        elemCount
+                        (fromIntegral oldStep * fromIntegral bitsPerWord)
+                        (fromIntegral oldDataSize * fromIntegral bitsPerWord)
+                        oldPointerCount
+                  else undefined
+            else undefined
+
+initTextPointer :: Ptr WirePointer -> Segment Builder -> ByteCount32 -> IO TextBuilder
+initTextPointer ref segment size = do
+    -- The byte list must include a NUL terminator.
+    let byteSize = size + 1
+
+    -- Allocate the space.
+    (ref, ptr, segment) <- allocate ref segment (roundBytesUpToWords byteSize) List
+
+    -- Initialize the pointer.
+    ref' <- peek ref
+    poke ref (setListRef ref' SzByte byteSize)
+
+    let bs = BS.fromForeignPtr (segmentForeignPtr segment) (ptr `minusPtr` unsafeSegmentPtr segment) (fromIntegral byteSize)
+    return $ TextBuilder bs
+
+setTextPointer :: Ptr WirePointer -> Segment Builder -> BS.ByteString -> IO TextBuilder
+setTextPointer ref segment value =
+    -- TODO: should make sure value ends in '\NULL'
+    BS.useAsCStringLen value $ \(srcPtr, len) -> do
+        allocation@(TextBuilder bs) <- initTextPointer ref segment (fromIntegral len)
+        BS.useAsCStringLen bs $ \(dstPtr, _) -> do
+            moveArray dstPtr srcPtr len
+            return allocation
+
+getWritableTextPointer :: Ptr WirePointer -> Segment Builder -> Ptr CPWord -> ByteCount32 -> IO TextBuilder
+getWritableTextPointer ref segment defaultValue defaultSize = do
+    ref' <- peek ref
+    if isNull ref'
+      then
+        if defaultSize == 0
+          then return $ TextBuilder "" -- XXX not quite right - allocation needs to end in '\NULL'
+          else fail "unimplemented"
+      else do
+        refTarget <- wirePointerTarget ref
+        (ref, ptr, segment) <- followBuilderFars ref segment
+        let cptr = castPtr ptr :: Ptr Word8
+
+        when (wirePointerKind ref' /= List) $
+          fail "Called getText{{Field,Element}}() but existing pointer is not a list."
+
+        when (listRefElementSize (toListRef ref') /= SzByte) $
+          fail "Called getText{{Field,Element}}() but existing list pointer is not byte-sized."
+
+        let count = listRefElementCount (toListRef ref')
+        nullMissing <- if count <= 0 then return True else do
+            lastByte <- peek $ cptr `advancePtr` (fromIntegral count - 1)
+            return $ lastByte == 0
+
+        when nullMissing $
+          fail "Text blob missing NUL terminator."
+
+        let bs = BS.fromForeignPtr (segmentForeignPtr segment) (cptr `minusPtr` unsafeSegmentPtr segment) (fromIntegral (count - 1))
+        return $ TextBuilder bs
+
+initDataPointer :: Ptr WirePointer -> Segment Builder -> ByteCount32 -> IO DataBuilder
+initDataPointer ref segment size = do
+    -- Allocate the space.
+    (ref, ptr, segment) <- allocate ref segment (roundBytesUpToWords size) List
+
+    -- Initialize the pointer.
+    ref' <- peek ref
+    poke ref $ setListRef ref' SzByte size
+
+    let bs = BS.fromForeignPtr (segmentForeignPtr segment) (ptr `minusPtr` unsafeSegmentPtr segment) (fromIntegral size)
+    return $ DataBuilder bs
+
+setDataPointer :: Ptr WirePointer -> Segment Builder -> BS.ByteString -> IO DataBuilder
+setDataPointer ref segment value =
+    -- TODO: should make sure value ends in '\NULL'
+    BS.useAsCStringLen value $ \(srcPtr, len) -> do
+        allocation@(DataBuilder bs) <- initDataPointer ref segment (fromIntegral len)
+        BS.useAsCStringLen bs $ \(dstPtr, _) -> do
+            moveArray dstPtr srcPtr len
+            return allocation
+
+getWritableDataPointer :: Ptr WirePointer -> Segment Builder -> BS.ByteString -> ByteCount32 -> IO DataBuilder
+getWritableDataPointer ref segment defaultValue defaultSize = do
+    ref' <- peek ref
+    if isNull ref'
+      then
+        if defaultSize == 0
+          then return $ DataBuilder ""
+          else do
+              setDataPointer ref segment defaultValue
+              undefined
+      else do
+          refTarget <- wirePointerTarget ref
+          (ref, ptr, segment) <- followBuilderFars ref segment
+          ref' <- peek ref
+
+          when (wirePointerKind ref' /= List) $
+            fail "Called getData{{Field,Element}}() but existing pointer is not a list."
+
+          when (listRefElementSize (toListRef ref') /= SzByte) $
+            fail "Called getData{{Field,Element}}() but existing list pointer is not byte-sized."
+
+          let len = listRefElementCount $ toListRef ref'
+              bs = BS.fromForeignPtr (segmentForeignPtr segment) (ptr `minusPtr` unsafeSegmentPtr segment) (fromIntegral len)
+          return $ DataBuilder bs
+
+--pub unsafe fn set_struct_pointer<'a>(mut segment : *mut SegmentBuilder,
+--                                     mut reff : *mut WirePointer,
+--                                     value : StructReader) -> Result<SegmentAnd<*mut Word>> {
+--    let data_size : WordCount32 = round_bits_up_to_words(value.data_size as u64);
+--    let total_size : WordCount32 = data_size + value.pointer_count as u32 * WORDS_PER_POINTER as u32;
+--
+--    let ptr = allocate(&mut reff, &mut segment, total_size, WirePointerKind::Struct);
+--    (*reff).mut_struct_ref().set(data_size as u16, value.pointer_count);
+--
+--    if value.data_size == 1 {
+--        *::std::mem::transmute::<*mut Word, *mut u8>(ptr) = value.get_bool_field(0) as u8
+--    } else {
+--        ::std::ptr::copy_nonoverlapping::<Word>(::std::mem::transmute(value.data), ptr,
+--                                                value.data_size as usize / BITS_PER_WORD);
+--    }
+--
+--    let pointer_section : *mut WirePointer = ::std::mem::transmute(ptr.offset(data_size as isize));
+--    for i in 0..value.pointer_count as isize {
+--        try!(copy_pointer(segment, pointer_section.offset(i), value.segment, value.pointers.offset(i),
+--                          value.nesting_limit));
+--    }
+--
+--    Ok(SegmentAnd { segment : segment, value : ptr })
+--}
+--
+--pub unsafe fn set_capability_pointer(segment : *mut SegmentBuilder,
+--                                     reff : *mut WirePointer,
+--                                     cap : Box<ClientHook+Send>) {
+--    (*reff).set_cap((*(*segment).get_arena()).inject_cap(cap));
+--}
+--
+--pub unsafe fn set_list_pointer<'a>(mut segment : *mut SegmentBuilder,
+--                                   mut reff : *mut WirePointer,
+--                                   value : ListReader) -> Result<SegmentAnd<*mut Word>> {
+--    let total_size = round_bits_up_to_words((value.element_count * value.step) as u64);
+--
+--    if value.step <= BITS_PER_WORD as u32 {
+--        //# List of non-structs.
+--        let ptr = allocate(&mut reff, &mut segment, total_size, WirePointerKind::List);
+--
+--        if value.struct_pointer_count == 1 {
+--            //# List of pointers.
+--            (*reff).mut_list_ref().set(Pointer, value.element_count);
+--            for i in 0.. value.element_count as isize {
+--                try!(copy_pointer(segment, ::std::mem::transmute::<*mut Word,*mut WirePointer>(ptr).offset(i),
+--                                  value.segment,
+--                                  ::std::mem::transmute::<*const u8,*const WirePointer>(value.ptr).offset(i),
+--                                  value.nesting_limit));
+--            }
+--        } else {
+--            //# List of data.
+--            let element_size = match value.step {
+--                0 => Void,
+--                1 => Bit,
+--                8 => Byte,
+--                16 => TwoBytes,
+--                32 => FourBytes,
+--                64 => EightBytes,
+--                _ => { panic!("invalid list step size: {}", value.step) }
+--            };
+--
+--            (*reff).mut_list_ref().set(element_size, value.element_count);
+--            ::std::ptr::copy_nonoverlapping(::std::mem::transmute::<*const u8,*const Word>(value.ptr),
+--                                            ptr,
+--                                            total_size as usize);
+--        }
+--
+--        Ok(SegmentAnd { segment : segment, value : ptr })
+--    } else {
+--        //# List of structs.
+--        let ptr = allocate(&mut reff, &mut segment, total_size + POINTER_SIZE_IN_WORDS as u32, WirePointerKind::List);
+--        (*reff).mut_list_ref().set_inline_composite(total_size);
+--
+--        let data_size = round_bits_up_to_words(value.struct_data_size as u64);
+--        let pointer_count = value.struct_pointer_count;
+--
+--        let tag : *mut WirePointer = ::std::mem::transmute(ptr);
+--        (*tag).set_kind_and_inline_composite_list_element_count(WirePointerKind::Struct, value.element_count);
+--        (*tag).mut_struct_ref().set(data_size as u16, pointer_count);
+--        let mut dst = ptr.offset(POINTER_SIZE_IN_WORDS as isize);
+--
+--        let mut src : *const Word = ::std::mem::transmute(value.ptr);
+--        for _ in 0.. value.element_count {
+--            ::std::ptr::copy_nonoverlapping(src, dst,
+--                                            value.struct_data_size as usize / BITS_PER_WORD);
+--            dst = dst.offset(data_size as isize);
+--            src = src.offset(data_size as isize);
+--
+--            for _ in 0..pointer_count {
+--                try!(copy_pointer(segment, ::std::mem::transmute(dst),
+--                                  value.segment, ::std::mem::transmute(src), value.nesting_limit));
+--                dst = dst.offset(POINTER_SIZE_IN_WORDS as isize);
+--                src = src.offset(POINTER_SIZE_IN_WORDS as isize);
+--            }
+--        }
+--        Ok(SegmentAnd { segment : segment, value : ptr })
+--    }
+--}
+--
+--pub unsafe fn copy_pointer(dst_segment : *mut SegmentBuilder, dst : *mut WirePointer,
+--                           mut src_segment : *const SegmentReader, mut src : *const WirePointer,
+--                           nesting_limit : i32) -> Result<SegmentAnd<*mut Word>> {
+--    let src_target = (*src).target();
+--
+--    if (*src).is_null() {
+--        ::std::ptr::write_bytes(dst, 0, 1);
+--        return Ok(SegmentAnd { segment : dst_segment, value : ::std::ptr::null_mut() });
+--    }
+--
+--    let mut ptr = try!(follow_fars(&mut src, src_target, &mut src_segment));
+--
+--    match (*src).kind() {
+--        WirePointerKind::Struct => {
+--            if nesting_limit <= 0 {
+--                return Err(Error::new_decode_error(
+--                    "Message is too deeply-nested or contains cycles. See ReaderOptions.", None));
+--            }
+--
+--            try!(bounds_check(src_segment, ptr, ptr.offset((*src).struct_ref().word_size() as isize),
+--                 WirePointerKind::Struct));
+--
+--            return set_struct_pointer(
+--                dst_segment, dst,
+--                StructReader {
+--                    marker : ::std::marker::PhantomData,
+--                    segment : src_segment,
+--                    data : ::std::mem::transmute(ptr),
+--                    pointers : ::std::mem::transmute(ptr.offset((*src).struct_ref().data_size.get() as isize)),
+--                    data_size : (*src).struct_ref().data_size.get() as u32 * BITS_PER_WORD as u32,
+--                    pointer_count : (*src).struct_ref().ptr_count.get(),
+--                    nesting_limit : nesting_limit - 1 });
+--
+--        }
+--        WirePointerKind::List => {
+--            let element_size = (*src).list_ref().element_size();
+--            if nesting_limit <= 0 {
+--                return Err(Error::new_decode_error(
+--                    "Message is too deeply-nested or contains cycles. See ReaderOptions.", None));
+--            }
+--
+--            if element_size == InlineComposite {
+--                let word_count = (*src).list_ref().inline_composite_word_count();
+--                let tag : *const WirePointer = ::std::mem::transmute(ptr);
+--                ptr = ptr.offset(POINTER_SIZE_IN_WORDS as isize);
+--
+--                try!(bounds_check(src_segment, ptr.offset(-1), ptr.offset(word_count as isize),
+--                                  WirePointerKind::List));
+--
+--                if (*tag).kind() != WirePointerKind::Struct {
+--                    return Err(Error::new_decode_error(
+--                        "InlineComposite lists of non-STRUCT type are not supported.", None));
+--                }
+--
+--                let element_count = (*tag).inline_composite_list_element_count();
+--                let words_per_element = (*tag).struct_ref().word_size();
+--
+--                if words_per_element as u64 * element_count as u64 > word_count as u64 {
+--                    return Err(Error::new_decode_error(
+--                        "InlineComposite list's elements overrun its word count.", None));
+--                }
+--
+--                if words_per_element == 0 {
+--                    // Watch out for lists of zero-sized structs, which can claim to be
+--                    // arbitrarily large without having sent actual data.
+--                    try!(amplified_read(src_segment, element_count as u64));
+--                }
+--
+--                return set_list_pointer(
+--                    dst_segment, dst,
+--                    ListReader {
+--                        marker : ::std::marker::PhantomData,
+--                        segment : src_segment,
+--                        ptr : ::std::mem::transmute(ptr),
+--                        element_count : element_count,
+--                        step : words_per_element * BITS_PER_WORD as u32,
+--                        struct_data_size : (*tag).struct_ref().data_size.get() as u32 * BITS_PER_WORD as u32,
+--                        struct_pointer_count : (*tag).struct_ref().ptr_count.get(),
+--                        nesting_limit : nesting_limit - 1
+--                    })
+--            } else {
+--                let data_size = data_bits_per_element(element_size);
+--                let pointer_count = pointers_per_element(element_size);
+--                let step = data_size + pointer_count * BITS_PER_POINTER as u32;
+--                let element_count = (*src).list_ref().element_count();
+--                let word_count = round_bits_up_to_words(element_count as u64 * step as u64);
+--
+--                try!(bounds_check(src_segment, ptr, ptr.offset(word_count as isize), WirePointerKind::List));
+--
+--                if element_size == Void {
+--                    // Watch out for lists of void, which can claim to be arbitrarily large
+--                    // without having sent actual data.
+--                    try!(amplified_read(src_segment, element_count as u64));
+--                }
+--
+--                return set_list_pointer(
+--                    dst_segment, dst,
+--                    ListReader {
+--                        marker : ::std::marker::PhantomData,
+--                        segment : src_segment,
+--                        ptr : ::std::mem::transmute(ptr),
+--                        element_count : element_count,
+--                        step : step,
+--                        struct_data_size : data_size,
+--                        struct_pointer_count : pointer_count as u16,
+--                        nesting_limit : nesting_limit - 1
+--                    })
+--            }
+--        }
+--        WirePointerKind::Far => {
+--            panic!("Far pointer should have been handled above");
+--        }
+--        WirePointerKind::Other => {
+--            if !(*src).is_capability() {
+--                return Err(Error::new_decode_error("Unknown pointer type.", None));
+--            }
+--            match (*src_segment).arena.extract_cap((*src).cap_ref().index.get() as usize) {
+--                Some(cap) => {
+--                    set_capability_pointer(dst_segment, dst, cap);
+--                    return Ok(SegmentAnd { segment : dst_segment, value : ::std::ptr::null_mut() });
+--                }
+--                None => {
+--                    return Err(Error::new_decode_error(
+--                        "Message contained invalid capability pointer.", None));
+--                }
+--            }
+--        }
+--    }
+--}
+
 
 -- TODO: assert ptr > segPtr
 getWordOffsetTo :: Segment Builder -> Ptr a -> WordCount32
@@ -990,13 +1524,13 @@ getPointerField reader ptrIndex =
 --------------------------------------------------------------------------------
 
 defaultStructReader :: StructReader
-defaultStructReader = StructReader nullSegment nullPtr nullPtr 0 0
+defaultStructReader = StructReader nullSegmentReader nullPtr nullPtr 0 0
 
 defaultPointerReader :: PointerReader
-defaultPointerReader = PointerReader nullSegment nullPtr
+defaultPointerReader = PointerReader nullSegmentReader nullPtr
 
 defaultUntypedListReader :: UntypedListReader
-defaultUntypedListReader = UntypedListReader nullSegment nullPtr 0 0 0 0
+defaultUntypedListReader = UntypedListReader nullSegmentReader nullPtr 0 0 0 0
 
 --------------------------------------------------------------------------------
 

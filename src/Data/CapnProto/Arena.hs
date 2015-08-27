@@ -45,16 +45,34 @@ segmentPos = _segmentPos
 instance Nullable (Segment a) where
     isNull segment = unsafeSegmentPtr segment == nullPtr
 
-nullArena :: Arena Reader
-nullArena =
-    Arena (unsafePerformIO $ newIORef [nullSegment])
+nullArenaReader :: Arena Reader
+nullArenaReader =
+    Arena (unsafePerformIO $ newIORef [nullSegmentReader])
           FixedSize
           (unsafePerformIO $ newIORef 0)
 
-{-# NOINLINE nullSegment #-}
-nullSegment :: Segment Reader
-nullSegment =
-    Segment nullArena
+nullArenaBuilder :: Arena Builder
+nullArenaBuilder =
+    Arena (unsafePerformIO $ newIORef [nullSegmentBuilder])
+          FixedSize
+          (unsafePerformIO $ newIORef 0)
+
+{-# NOINLINE nullSegmentReader #-}
+nullSegmentReader :: Segment Reader
+nullSegmentReader =
+    Segment nullArenaReader
+            (unsafePerformIO . newForeignPtr_ $ nullPtr)
+            nullPtr
+            0
+            0
+            nullPos
+  where
+    nullPos = unsafePerformIO $ newIORef nullPtr
+
+{-# NOINLINE nullSegmentBuilder #-}
+nullSegmentBuilder :: Segment Builder
+nullSegmentBuilder =
+    Segment nullArenaBuilder
             (unsafePerformIO . newForeignPtr_ $ nullPtr)
             nullPtr
             0
