@@ -1357,10 +1357,10 @@ class StructField a where
     getField :: StructReader -> ElementCount -> IO a
     getField' :: StructReader -> ElementCount -> DefaultTy a -> IO a
 
-    default getField :: (Storable a, Zero a) => StructReader -> ElementCount -> IO a
+    default getField :: (Storable a, Num a) => StructReader -> ElementCount -> IO a
     getField = getDataField
 
-    default getField' :: (Storable a, Zero a, Bits a, DefaultTy a ~ a) => StructReader -> ElementCount -> DefaultTy a -> IO a
+    default getField' :: (Storable a, Bits a, DefaultTy a ~ a) => StructReader -> ElementCount -> DefaultTy a -> IO a
     getField' struct index def = fmap (`xor` def) (getField struct index)
 
 instance StructField () where
@@ -1431,14 +1431,14 @@ instance (ListElement a) => StructField (ListReader a) where
 
 ---------------------
 
-getDataField :: (Storable a, Zero a) => StructReader -> ElementCount -> IO a
+getDataField :: (Storable a, Num a) => StructReader -> ElementCount -> IO a
 getDataField = getDataFieldHack undefined
   where
-    getDataFieldHack :: (Storable a, Zero a) => a -> StructReader -> ElementCount -> IO a
+    getDataFieldHack :: (Storable a, Num a) => a -> StructReader -> ElementCount -> IO a
     getDataFieldHack dummy reader offset = withSegment (structReaderSegment reader) $ \_ ->
         if bitOffset <= dataBits
           then peekElemOff (castPtr (structReaderData reader)) (fromIntegral offset)
-          else return zero
+          else return 0
       where
         bitOffset = (fromIntegral offset + 1) * (sizeOf dummy * bitsPerByte)
         dataBits = fromIntegral (structReaderDataSize reader)
