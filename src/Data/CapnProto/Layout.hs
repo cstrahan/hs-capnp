@@ -1,11 +1,12 @@
-{-# LANGUAGE DefaultSignatures     #-}
-{-# LANGUAGE FlexibleContexts      #-}
-{-# LANGUAGE FlexibleInstances     #-}
-{-# LANGUAGE MultiParamTypeClasses #-}
-{-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE LambdaCase            #-}
-{-# LANGUAGE BangPatterns          #-}
-{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE DefaultSignatures      #-}
+{-# LANGUAGE FlexibleContexts       #-}
+{-# LANGUAGE FlexibleInstances      #-}
+{-# LANGUAGE MultiParamTypeClasses  #-}
+{-# LANGUAGE TypeFamilies           #-}
+{-# LANGUAGE LambdaCase             #-}
+{-# LANGUAGE BangPatterns           #-}
+{-# LANGUAGE OverloadedStrings      #-}
+{-# LANGUAGE FunctionalDependencies #-}
 
 module Data.CapnProto.Layout where
 
@@ -1445,6 +1446,10 @@ instance (ListElement a) => StructField (ListReader a) where
         getFieldHack dummy reader index def = ListReader <$> getList ptrReader (elementSize dummy) (castPtr def)
           where
             ptrReader = getPointerField reader (fromIntegral index)
+
+class AsReader builder where
+    type ReaderTy builder :: *
+    asReader :: builder -> ReaderTy builder
 
 ---------------------
 
