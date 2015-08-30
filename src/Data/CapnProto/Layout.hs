@@ -491,7 +491,7 @@ zeroObjectHelper segment tag ptr = do
                         elemKind = wirePointerKind elementTag'
                     when (elemKind /= Struct) $
                         fail "Don't know how to handle non-STRUCT inline composite"
-                    loopFold 0 count (ptr `advancePtr` 1) $ \pos _ -> do
+                    loopFold_ 0 count (ptr `advancePtr` 1) $ \pos _ -> do
                         let pos = pos `advancePtr` fromIntegral dataSize :: Ptr CPWord
                         loopFold 0 pointerCount pos $ \pos _ -> do
                             zeroObject segment (castPtr pos)
@@ -865,8 +865,74 @@ getWritableStructListPointer origRef origSegment elemSize defaultValue = do
                         (fromIntegral oldStep * fromIntegral bitsPerWord)
                         (fromIntegral oldDataSize * fromIntegral bitsPerWord)
                         oldPointerCount
-                  else undefined
-            else undefined
+                  else
+                    -- The structs in this list are smaller than expected, probably written using an older
+                    -- version of the protocol. We need to make a copy and expand them.
+                    fail "unimplemented"
+            else do
+                -- We're upgrading from a non-struct list.
+                let oldDataSize = dataBitsPerElement oldSize
+                    oldPointerCount = pointersPerElement oldSize
+                    oldStep = oldDataSize + oldPointerCount * fromIntegral bitsPerPointer
+                    elemCount = listRefElementCount $ toListRef oldRef'
+
+                if oldSize == SzVoid
+                  then initStructListPointer oldRef origSegment elemCount elemSize
+                  else do
+                      -- Upgrade to an inline composite list.
+                      when (oldSize == SzBit) $
+                        fail "Found bit list where struct list was expected; upgrading boolean lists to struct lists is no longer supported."
+
+                      let (newDataSize, newPointerCount) =
+                            if (oldSize == SzPointer)
+                              then (structSizeData elemSize, max (structSizePointers elemSize) 1)
+                              else (max (structSizeData elemSize) 1, structSizePointers elemSize)
+
+
+                          newStep = newDataSize + newPointerCount
+                          totalWords = elemCount * fromIntegral newStep
+
+                      -- Don't let allocate() zero out the object just yet.
+                      zeroPointerAndFars origSegment origRef
+
+                      (newRef, newPtr, newSegment) <- allocate origRef origSegment (totalWords + fromIntegral pointerSizeInWords) List
+                      newRef' <- peek newRef
+                      newRef' <- return $ setInlineComposite newRef' totalWords
+                      poke newRef newRef'
+
+                      let tag = castPtr newPtr :: Ptr WirePointer
+                      tag' <- peek tag
+                      tag' <- return $ setKindAndInlineCompositeListElementCount tag' Struct elemCount
+                      tag' <- return $ setStructRef tag' newDataSize newPointerCount
+                      poke tag tag'
+                      newPtr <- return $ newPtr `advancePtr` pointerSizeInWords
+
+                      if oldSize == SzPointer
+                        then do
+                            let dst = castPtr $ newPtr `advancePtr` fromIntegral newDataSize :: Ptr CPWord
+                                src = castPtr oldPtr :: Ptr WirePointer
+                            loopFold_ 0 elemCount (src, dst) $ \(src, dst) _ -> do
+                                transferPointer newSegment (castPtr dst) oldSegment src
+                                return (src `advancePtr` 1, dst `advancePtr` fromIntegral newStep)
+                        else do
+                            let dst = castPtr newPtr :: Ptr CPWord
+                                src = castPtr oldPtr :: Ptr Word8
+                                oldByteStep = oldDataSize `div` fromIntegral bitsPerByte
+                            loopFold_ 0 elemCount (src, dst) $ \(src, dst) _ -> do
+                                copyArray (castPtr dst) src (fromIntegral oldByteStep)
+                                return (src `advancePtr` fromIntegral oldByteStep, dst `advancePtr` fromIntegral newStep)
+
+                      -- Zero out old location.
+                      zeroArray (castPtr oldPtr :: Ptr Word8) (fromIntegral $ roundBitsUpToBytes (fromIntegral oldStep * fromIntegral elemCount))
+
+                      return $
+                        UntypedListBuilder
+                            newSegment
+                            (castPtr newPtr)
+                            elemCount
+                            (fromIntegral newStep * fromIntegral bitsPerWord)
+                            (fromIntegral newDataSize * fromIntegral bitsPerWord)
+                            newPointerCount
 
 initTextPointer :: Ptr WirePointer -> Segment Builder -> ByteCount32 -> IO TextBuilder
 initTextPointer ref segment size = do
@@ -1049,7 +1115,7 @@ setListPointer segment ref value = do
 
         let dst = ptr `advancePtr` pointerSizeInWords :: Ptr CPWord
         let src = castPtr $ untypedListReaderData value :: Ptr WirePointer
-        loopFold 0 (untypedListReaderElementCount value) (src, dst) $ \(src, dst) _ -> do
+        loopFold_ 0 (untypedListReaderElementCount value) (src, dst) $ \(src, dst) _ -> do
             copyArray (castPtr dst) src (fromIntegral (untypedListReaderStructDataSize value `div` fromIntegral bitsPerWord))
 
             let dst = dst `advancePtr` fromIntegral dataSize
@@ -1653,7 +1719,10 @@ instance (ListElement a) => ListElement (ListReader a) where
 
 --------------------------------------------------------------------------------
 loop :: (Monad m, Num a, Eq a) => a -> a -> (a -> m b) -> m ()
-loop start end f = loopFold start end () (\_ x -> void $ f x )
+loop start end f = loopFold_ start end () (\_ x -> void $ f x )
+
+loopFold_ :: (Monad m, Num a, Eq a) => a -> a -> acc -> (acc -> a -> m acc) -> m ()
+loopFold_ start end acc = void . loopFold start end acc
 
 loopFold :: (Monad m, Num a, Eq a) => a -> a -> acc -> (acc -> a -> m acc) -> m acc
 loopFold start end = loopFold' start (/= end) (+1)
