@@ -1,4 +1,3 @@
-{-# LANGUAGE EmptyDataDecls #-}
 {-# LANGUAGE LambdaCase #-}
 
 module Data.CapnProto.Arena where
@@ -18,133 +17,141 @@ import           Data.CapnProto.Units
 
 --------------------------------------------------------------------------------
 
--- for use as phantom types
-data Reader
-data Builder
-
 type SegmentId = Word32
 
-data Segment a = Segment
-  { segmentArena      :: Arena a
-  , segmentForeignPtr :: ForeignPtr Word8
-  , unsafeSegmentPtr  :: Ptr CPWord
-  , segmentSize       :: WordCount32
-  , _segmentId        :: SegmentId
-  , _segmentPos       :: IORef (Ptr CPWord)
+data SegmentReader = SegmentReader
+  { segmentReaderArena      :: Arena
+  , segmentReaderForeignPtr :: ForeignPtr Word8
+  , unsafeSegmentReaderPtr  :: Ptr CPWord
+  , segmentReaderSize       :: WordCount32
   }
 
-instance Eq (Segment a) where
-    a == b = unsafeSegmentPtr a == unsafeSegmentPtr a
+data SegmentBuilder = SegmentBuilder
+  { segmentBuilderSegmentReader :: SegmentReader
+  , segmentBuilderId            :: SegmentId
+  , segmentBuilderPos           :: IORef (Ptr CPWord)
+  }
 
-segmentId :: Segment Builder -> SegmentId
-segmentId = _segmentId
+segmentBuilderGetArena :: SegmentBuilder -> BuilderArena
+segmentBuilderGetArena segment =
+    case segmentReaderArena (segmentBuilderSegmentReader segment) of
+        ABuilder arena -> arena
+        _ -> error "the impossible happened"
 
-segmentPos :: Segment Builder -> IORef (Ptr CPWord)
-segmentPos = _segmentPos
+segmentBuilderForeignPtr :: SegmentBuilder -> ForeignPtr Word8
+segmentBuilderForeignPtr = segmentReaderForeignPtr . segmentBuilderSegmentReader
 
-instance Nullable (Segment a) where
-    isNull segment = unsafeSegmentPtr segment == nullPtr
+unsafeSegmentBuilderPtr  :: SegmentBuilder -> Ptr CPWord
+unsafeSegmentBuilderPtr = unsafeSegmentReaderPtr . segmentBuilderSegmentReader
 
-nullArenaReader :: Arena Reader
+segmentBuilderSize :: SegmentBuilder -> WordCount32
+segmentBuilderSize = segmentReaderSize . segmentBuilderSegmentReader
+
+-- instance Eq (SegmentReader) where
+--     a == b = unsafeSegmentReaderPtr a == unsafeSegmentReaderPtr a
+
+instance Nullable (SegmentReader) where
+    isNull segment = unsafeSegmentReaderPtr segment == nullPtr
+
+instance Nullable (SegmentBuilder) where
+    isNull = isNull . segmentBuilderSegmentReader
+
+nullArenaReader :: ReaderArena
 nullArenaReader =
-    Arena (unsafePerformIO $ newIORef [nullSegmentReader])
-          FixedSize
-          (unsafePerformIO $ newIORef 0)
+    ReaderArena (unsafePerformIO $ newIORef [nullSegmentReader])
 
-nullArenaBuilder :: Arena Builder
+nullArenaBuilder :: BuilderArena
 nullArenaBuilder =
-    Arena (unsafePerformIO $ newIORef [nullSegmentBuilder])
+    BuilderArena (unsafePerformIO $ newIORef [nullSegmentBuilder])
           FixedSize
           (unsafePerformIO $ newIORef 0)
 
 {-# NOINLINE nullSegmentReader #-}
-nullSegmentReader :: Segment Reader
+nullSegmentReader :: SegmentReader
 nullSegmentReader =
-    Segment nullArenaReader
+    SegmentReader (AReader nullArenaReader)
             (unsafePerformIO . newForeignPtr_ $ nullPtr)
             nullPtr
             0
-            0
-            nullPos
   where
     nullPos = unsafePerformIO $ newIORef nullPtr
 
 {-# NOINLINE nullSegmentBuilder #-}
-nullSegmentBuilder :: Segment Builder
+nullSegmentBuilder :: SegmentBuilder
 nullSegmentBuilder =
-    Segment nullArenaBuilder
-            (unsafePerformIO . newForeignPtr_ $ nullPtr)
-            nullPtr
-            0
-            0
-            nullPos
+    SegmentBuilder nullSegmentReader 0 nullPos
   where
     nullPos = unsafePerformIO $ newIORef nullPtr
 
-withSegment :: Segment a -> (Ptr CPWord -> IO b) -> IO b
-withSegment reader f = withForeignPtr (segmentForeignPtr reader) $ \_ ->
-    f (unsafeSegmentPtr reader)
+withSegmentReader :: SegmentReader -> (Ptr CPWord -> IO b) -> IO b
+withSegmentReader reader f = withForeignPtr (segmentReaderForeignPtr reader) $ \_ ->
+    f (unsafeSegmentReaderPtr reader)
 
-data Arena a = Arena
-  { arenaSegments :: IORef [Segment a]
-  , _arenaAllocationStrategy :: AllocationStrategy
-  , _arenaNextSize :: IORef Word32
+withSegmentBuilder :: SegmentBuilder -> (Ptr CPWord -> IO b) -> IO b
+withSegmentBuilder = withSegmentReader . segmentBuilderSegmentReader
+
+data Arena
+    = AReader ReaderArena
+    | ABuilder BuilderArena
+
+data ReaderArena = ReaderArena
+  { readerArenaMoreSegments :: IORef [SegmentReader] -- segments are lazily allocated, so this is mutable.
   }
 
-arenaAllocationStrategy :: Arena Builder -> AllocationStrategy
-arenaAllocationStrategy = _arenaAllocationStrategy
-
-arenaNextSize :: Arena Builder -> IORef Word32
-arenaNextSize = _arenaNextSize
+data BuilderArena = BuilderArena
+  { builderArenaMoreSegments :: IORef [SegmentBuilder]
+  , builderArenaAllocationStrategy :: AllocationStrategy
+  , builderArenaNextSize :: IORef Word32
+  }
 
 data AllocationStrategy
   = FixedSize
   | GrowHeuristically
 
-allocateSegmentBuilder :: Arena Builder -> Int -> IO (Segment Builder)
+allocateSegmentBuilder :: BuilderArena -> Int -> IO SegmentBuilder
 allocateSegmentBuilder arena numWords = do
     fptr <- mallocForeignPtrBytes (fromIntegral $ numWords * bytesPerWord)
     let ptr = castPtr $ unsafeForeignPtrToPtr fptr
         segmentId = 0 -- XXX
     pos <- newIORef ptr
-    return $ Segment
-        arena
-        fptr
-        ptr
-        (fromIntegral numWords)
+    return $ SegmentBuilder
+        (SegmentReader (ABuilder arena) fptr ptr (fromIntegral numWords))
         segmentId
         pos
 
 ---------------------------
 
-appendSegment :: Arena Builder -> Segment Builder -> IO ()
+appendSegment :: BuilderArena -> SegmentBuilder -> IO ()
 appendSegment arena segment = do
-    segments <- readIORef . arenaSegments $ arena
-    writeIORef (arenaSegments arena) (segments ++ [ segment ])
+    segments <- readIORef . builderArenaMoreSegments $ arena
+    writeIORef (builderArenaMoreSegments arena) (segments ++ [ segment ])
 
-numSegments :: Arena a -> IO Int
-numSegments arena = length <$> readIORef (arenaSegments arena)
+numSegments :: BuilderArena -> IO Int
+numSegments arena = length <$> readIORef (builderArenaMoreSegments arena)
 
-getFirstSegment :: Arena a -> IO (Segment a)
-getFirstSegment arena = head <$> readIORef (arenaSegments arena)
+segmentReaderGetFirstSegment :: ReaderArena -> IO SegmentReader
+segmentReaderGetFirstSegment arena = head <$> readIORef (readerArenaMoreSegments arena)
 
-getLastSegment :: Arena a -> IO (Segment a)
-getLastSegment arena = last <$> readIORef (arenaSegments arena)
+segmentBuilderGetFirstSegment :: BuilderArena -> IO SegmentBuilder
+segmentBuilderGetFirstSegment arena = head <$> readIORef (builderArenaMoreSegments arena)
 
-allocateOwnedMemory :: Arena Builder -> WordCount32 -> IO (ForeignPtr Word8, WordCount32)
+getLastSegment :: BuilderArena -> IO SegmentBuilder
+getLastSegment arena = last <$> readIORef (builderArenaMoreSegments arena)
+
+allocateOwnedMemory :: BuilderArena -> WordCount32 -> IO (ForeignPtr Word8, WordCount32)
 allocateOwnedMemory arena minSize = do
-    nextSize <- readIORef (arenaNextSize arena)
+    nextSize <- readIORef (builderArenaNextSize arena)
     let size = max minSize nextSize
     let sizeInBytes = fromIntegral size * bytesPerWord
     fptr <- mallocForeignPtrBytes $ sizeInBytes
-    case arenaAllocationStrategy arena of
+    case builderArenaAllocationStrategy arena of
         GrowHeuristically ->
-          void $ writeIORef (arenaNextSize arena) (nextSize + size)
+          void $ writeIORef (builderArenaNextSize arena) (nextSize + size)
         _ ->
           return ()
     return (fptr, size)
 
-arenaAllocate :: Arena Builder -> WordCount32 -> IO (Segment Builder, Ptr CPWord)
+arenaAllocate :: BuilderArena -> WordCount32 -> IO (SegmentBuilder, Ptr CPWord)
 arenaAllocate arena amount = do
     segment <- getLastSegment arena
     segmentAllocate segment amount >>= \case
@@ -154,55 +161,69 @@ arenaAllocate arena amount = do
             (fptr, size) <- allocateOwnedMemory arena amount
             let ptr = castPtr $ unsafeForeignPtrToPtr fptr
             pos <- newIORef ptr
-            let segment = Segment arena fptr ptr size id pos
+            let segment = SegmentBuilder (SegmentReader (ABuilder arena) fptr ptr size) id pos
             appendSegment arena segment
             return (segment, ptr)
 
 ---------------------------
 
-segmentAllocate :: Segment Builder -> WordCount32 -> IO (Maybe (Ptr CPWord))
+segmentAllocate :: SegmentBuilder -> WordCount32 -> IO (Maybe (Ptr CPWord))
 segmentAllocate segment amount = do
     currSize <- segmentCurrentSize segment
-    if amount > segmentSize segment - currSize
+    if amount > segmentBuilderSize segment - currSize
       then return Nothing
       else do
-          pos <- readIORef $ segmentPos segment
-          writeIORef (segmentPos segment) (pos `plusPtr` (fromIntegral amount * bytesPerWord))
+          pos <- readIORef $ segmentBuilderPos segment
+          writeIORef (segmentBuilderPos segment) (pos `plusPtr` (fromIntegral amount * bytesPerWord))
           return . Just $ pos
 
-getPtrUnchecked :: Segment Builder -> WordCount32 -> Ptr CPWord
-getPtrUnchecked segment offset = unsafeSegmentPtr segment `plusPtr` (fromIntegral offset * bytesPerWord)
+segmentReaderGetPtrUnchecked :: SegmentReader -> WordCount32 -> Ptr CPWord
+segmentReaderGetPtrUnchecked segment offset = unsafeSegmentReaderPtr segment `plusPtr` (fromIntegral offset * bytesPerWord)
 
-segmentCurrentSize :: Segment Builder -> IO WordCount32
+segmentBuilderGetPtrUnchecked :: SegmentBuilder -> WordCount32 -> Ptr CPWord
+segmentBuilderGetPtrUnchecked segment offset = unsafeSegmentBuilderPtr segment `plusPtr` (fromIntegral offset * bytesPerWord)
+
+segmentCurrentSize :: SegmentBuilder -> IO WordCount32
 segmentCurrentSize segment = do
-    pos <- readIORef . segmentPos $ segment
-    return $ fromIntegral $ (pos `minusPtr` unsafeSegmentPtr segment) `div` bytesPerWord
+    pos <- readIORef . segmentBuilderPos $ segment
+    return $ fromIntegral $ (pos `minusPtr` unsafeSegmentBuilderPtr segment) `div` bytesPerWord
 
 -- XXX
-arenaFromByteStrings :: [BS.ByteString] -> Arena Reader
+arenaFromByteStrings :: [BS.ByteString] -> ReaderArena
 arenaFromByteStrings strs = arena
   where
-    arena = Arena (unsafePerformIO $ newIORef segments) FixedSize (unsafePerformIO $ newIORef 0)
+    arena = ReaderArena (unsafePerformIO $ newIORef segments)
     segments = map segmentFromByteString strs
     segmentFromByteString str =
         let (fptr, offset, len) = toForeignPtr str
             ptr = castPtr $ plusPtr (unsafeForeignPtrToPtr fptr) offset
             segmentReader =
-                Segment
-                    arena
+                SegmentReader
+                    (AReader arena)
                     (castForeignPtr fptr)
                     ptr
                     (fromIntegral len `div` fromIntegral bytesPerWord)
-                    undefined
-                    undefined
         in segmentReader
 
-tryGetSegment :: Arena a -> SegmentId -> IO (Segment a)
-tryGetSegment arena id = do
-    segments <- readIORef $ arenaSegments arena
+readerArenaGetSegment :: ReaderArena -> SegmentId -> IO SegmentReader
+readerArenaGetSegment arena id = do
+    segments <- readIORef $ readerArenaMoreSegments arena
     case segments `at` fromIntegral id of
         Left err -> fail $ "Invalid segment id: "<>err
         Right res -> return res
+
+builderArenaGetSegment :: BuilderArena -> SegmentId -> IO SegmentBuilder
+builderArenaGetSegment arena id = do
+    segments <- readIORef $ builderArenaMoreSegments arena
+    case segments `at` fromIntegral id of
+        Left err -> fail $ "Invalid segment id: "<>err
+        Right res -> return res
+
+arenaGetSegment :: Arena -> SegmentId -> IO SegmentReader
+arenaGetSegment arena id =
+    case arena of
+        AReader reader -> readerArenaGetSegment reader id
+        ABuilder builder -> segmentBuilderSegmentReader <$> builderArenaGetSegment builder id
 
 --------------------------------------------------------------------------------
 
