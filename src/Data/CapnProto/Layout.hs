@@ -1,11 +1,11 @@
-{-# LANGUAGE DefaultSignatures      #-}
-{-# LANGUAGE FlexibleContexts       #-}
-{-# LANGUAGE FlexibleInstances      #-}
-{-# LANGUAGE MultiParamTypeClasses  #-}
-{-# LANGUAGE TypeFamilies           #-}
-{-# LANGUAGE LambdaCase             #-}
-{-# LANGUAGE BangPatterns           #-}
-{-# LANGUAGE OverloadedStrings      #-}
+{-# LANGUAGE BangPatterns          #-}
+{-# LANGUAGE DefaultSignatures     #-}
+{-# LANGUAGE FlexibleContexts      #-}
+{-# LANGUAGE FlexibleInstances     #-}
+{-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MultiParamTypeClasses #-}
+{-# LANGUAGE OverloadedStrings     #-}
+{-# LANGUAGE TypeFamilies          #-}
 
 module Data.CapnProto.Layout where
 
@@ -19,6 +19,7 @@ import qualified Data.ByteString          as BS
 import qualified Data.ByteString.Char8    as BSC
 import qualified Data.ByteString.Internal as BS (fromForeignPtr, memset)
 import           Data.Int
+import           Data.IORef
 import           Data.Monoid
 import           Data.Word
 import           Foreign.C.Types          (CChar, CSize)
@@ -27,7 +28,6 @@ import           Foreign.Marshal.Array    hiding (newArray)
 import           Foreign.Ptr
 import           Foreign.Storable
 import           System.IO
-import           Data.IORef
 import           Text.Printf
 
 import           Data.CapnProto.Arena
@@ -51,10 +51,23 @@ debugSegment reader = withSegmentReader reader $ \ptr -> do
     debug $ "SEGMENT: " <> hex
 
 --------------------------------------------------------------------------------
+class Union a where
+    type UnionTy a :: *
+    which :: a -> IO (UnionTy a)
+
+-- TODO - use
+class AsReader builder where
+    type ReaderTy builder :: *
+    asReader :: builder -> ReaderTy builder
+
+data StructSize = StructSize
+  { structSizeData     :: WordCount16
+  , structSizePointers :: WirePointerCount16
+  }
 
 data MessageSize = MessageSize
   { wordCount :: Word64
-  , capCount :: Word64
+  , capCount  :: Word64
   }
 
 data ElementSize =
@@ -67,6 +80,11 @@ data ElementSize =
   | SzPointer
   | SzInlineComposite
   deriving (Show, Enum, Eq)
+
+data PointerReader = PointerReader
+  { pointerReaderSegment :: SegmentReader
+  , pointerReaderData    :: Ptr WirePointer
+  }
 
 newtype TextReader = TextReader
   { textReaderData :: Maybe BS.ByteString
@@ -118,27 +136,98 @@ data UntypedListBuilder = UntypedListBuilder
   , untypedListBuilderStructPtrCount :: WirePointerCount16
   }
 
-nullUntypedListBuilder = UntypedListBuilder
-    nullSegmentBuilder
-    nullPtr
-    0
-    0
-    0
-    0
-
 data StructRef = StructRef
     { structRefDataSize :: WordCount16
     , structRefPtrCount :: WirePointerCount16
     } deriving (Show)
-
-wordSize :: StructRef -> WordCount32
-wordSize ref = fromIntegral (structRefDataSize ref) + fromIntegral (structRefPtrCount ref)
 
 data ListRef = ListRef
     { listRefElementSize              :: ElementSize
     , listRefElementCount             :: ElementCount32
     , listRefInlineCompositeWordCount :: WordCount32
     } deriving (Show)
+
+data WirePointerKind
+  = Struct
+  | List
+  | Far
+  | Other
+  deriving (Show, Eq, Enum)
+
+data WirePointer = WirePointer
+  { offsetAndKind :: Word32
+  , upper32Bits   :: Word32
+  } deriving (Show)
+
+instance Nullable WirePointer where
+    isNull ptr = offsetAndKind ptr == 0 && upper32Bits ptr == 0
+
+-- TODO: handle endianness correctly
+instance Storable WirePointer where
+    sizeOf _ = 8
+    alignment _ = 8
+    poke ptr (WirePointer a b) =
+        let p0 = castPtr ptr :: Ptr Word32
+            p1 = castPtr $ p0 `advancePtr` 1
+        in poke p0 a >> poke p1 b
+    peek ptr =
+        let p0 = castPtr ptr :: Ptr Word32
+            p1 = castPtr $ p0 `advancePtr` 1
+        in WirePointer <$> peek p0 <*> peek p1
+
+--------------------------------------------------------------------------------
+-- Wire Helpers
+
+roundBytesUpToWords :: ByteCount32 -> WordCount32
+roundBytesUpToWords bytes = fromIntegral $ (bytes + 7) `div` fromIntegral bytesPerWord
+
+roundBitsUpToWords :: BitCount64 -> WordCount32
+roundBitsUpToWords bits = fromIntegral $ (bits + 63) `div` fromIntegral bitsPerWord
+
+roundBitsUpToBytes :: BitCount64 -> ByteCount32
+roundBitsUpToBytes bytes = fromIntegral $ (bytes + 7) `div` fromIntegral bitsPerByte
+
+boundsCheck :: SegmentReader -> Ptr CPWord -> Ptr CPWord -> WirePointerKind -> IO ()
+boundsCheck segment start end kind =
+    unless (isNull segment || containsInterval segment start end) $
+      fail $ case kind of
+                    List -> "Message contained out-of-bounds list pointer."
+                    Struct -> "Message contained out-of-bounds struct pointer."
+                    Far -> "Message contained out-of-bounds far pointer."
+                    Other -> "Message contained out-of-bounds other pointer."
+
+dataBitsPerElement :: ElementSize -> BitCount32
+dataBitsPerElement size =
+    case size of
+        SzVoid -> 0
+        SzBit -> 1
+        SzByte -> 8
+        SzTwoBytes -> 16
+        SzFourBytes -> 32
+        SzEightBytes -> 64
+        SzPointer -> 0
+        SzInlineComposite -> 0
+
+pointersPerElement :: ElementSize -> WirePointerCount32
+pointersPerElement size =
+    case size of
+        SzPointer -> 1
+        _ -> 0
+
+structSizeTotal :: StructSize -> WordCount32
+structSizeTotal (StructSize x y) = fromIntegral x + fromIntegral y
+
+toStructRef :: WirePointer -> StructRef
+toStructRef ptr = StructRef (fromIntegral (upper32Bits ptr))
+                            (fromIntegral ((upper32Bits ptr) `shiftR` 16))
+
+setStructRef :: WirePointer -> WordCount16 -> WordCount16 -> WirePointer
+setStructRef wptr dataSize pointerCount = wptr
+    { upper32Bits = fromIntegral dataSize .|. (fromIntegral pointerCount) `shiftL` 16
+    }
+
+structRefWordSize :: StructRef -> WordCount32
+structRefWordSize ref = fromIntegral (structRefDataSize ref) + fromIntegral (structRefPtrCount ref)
 
 toListRef :: WirePointer -> ListRef
 toListRef ptr = ListRef (toEnum (fromIntegral ((upper32Bits ptr) .&. 7)))
@@ -157,61 +246,20 @@ setInlineComposite wptr wordCount = wptr
     { upper32Bits = ((fromIntegral (fromEnum SzInlineComposite)) .&. 7) .|. ((upper32Bits wptr) `shiftL` 3)
     }
 
-toStructRef :: WirePointer -> StructRef
-toStructRef ptr = StructRef (fromIntegral (upper32Bits ptr))
-                            (fromIntegral ((upper32Bits ptr) `shiftR` 16))
+defaultStructReader :: StructReader
+defaultStructReader = StructReader nullSegmentReader nullPtr nullPtr 0 0
 
-setStructRef :: WirePointer -> WordCount16 -> WordCount16 -> WirePointer
-setStructRef wptr dataSize pointerCount = wptr
-    { upper32Bits = fromIntegral dataSize .|. (fromIntegral pointerCount) `shiftL` 16
-    }
+defaultPointerReader :: PointerReader
+defaultPointerReader = PointerReader nullSegmentReader nullPtr
 
---------------------------------------------------------------------------------
+defaultUntypedListReader :: UntypedListReader
+defaultUntypedListReader = UntypedListReader nullSegmentReader nullPtr 0 0 0 0
 
-class Union a where
-    type UnionTy a :: *
-    which :: a -> IO (UnionTy a)
+defaultUntypedListBuilder :: UntypedListBuilder
+defaultUntypedListBuilder = UntypedListBuilder nullSegmentBuilder nullPtr 0 0 0 0
 
---------------------------------------------------------------------------------
-
-data WirePointerKind =
-    Struct
-  | List
-  | Far
-  | Other
-  deriving (Show, Eq, Enum)
-
--- | Little-endian encoded value.
--- TODO: handle endianness correctly
-type WireValue a = a
-
-data PointerReader = PointerReader
-  { pointerReaderSegment :: SegmentReader
-  , pointerReaderData    :: Ptr WirePointer
-  }
-
-data WirePointer = WirePointer
-  { offsetAndKind :: WireValue Word32
-  , upper32Bits   :: Word32
-  } deriving (Show)
-
-instance Nullable WirePointer where
-    isNull ptr = offsetAndKind ptr == 0 && upper32Bits ptr == 0
-
-nullWirePointer :: WirePointer
-nullWirePointer = WirePointer { offsetAndKind = 0, upper32Bits = 0 }
-
-instance Storable WirePointer where
-    sizeOf _ = 8
-    alignment _ = 8
-    poke ptr (WirePointer a b) =
-        let p0 = castPtr ptr :: Ptr (WireValue Word32)
-            p1 = castPtr $ p0 `advancePtr` 1
-        in poke p0 a >> poke p1 b
-    peek ptr =
-        let p0 = castPtr ptr :: Ptr (WireValue Word32)
-            p1 = castPtr $ p0 `advancePtr` 1
-        in WirePointer <$> peek p0 <*> peek p1
+defaultWirePointer :: WirePointer
+defaultWirePointer = WirePointer { offsetAndKind = 0, upper32Bits = 0 }
 
 wirePointerKind :: WirePointer -> WirePointerKind
 wirePointerKind ptr =
@@ -220,6 +268,14 @@ wirePointerKind ptr =
         1 -> List
         2 -> Far
         3 -> Other
+
+wirePtrRefIsNull :: Ptr WirePointer -> IO Bool
+wirePtrRefIsNull ref =
+    if ref == nullPtr
+      then return True
+      else do
+          wirePtr <- peek ref
+          return $ isNull wirePtr
 
 nonFarOffset :: WirePointer -> Int
 nonFarOffset = (`shiftR` 2) . fromIntegral . offsetAndKind
@@ -243,12 +299,6 @@ inlineCompositeListElementCount ptr = offsetAndKind ptr `shiftR` 2
 
 isCapability :: WirePointer -> Bool
 isCapability wptr = wirePointerKind wptr == Other
-
-containsInterval :: SegmentReader -> Ptr CPWord -> Ptr CPWord -> Bool
-containsInterval segment from to =
-    let thisBegin = unsafeSegmentReaderPtr segment
-        thisEnd = thisBegin `advancePtr` fromIntegral (segmentReaderSize segment)
-    in from >= thisBegin && to <= thisEnd && from <= to
 
 setKindAndTargetForEmptyStruct :: WirePointer -> WirePointer
 setKindAndTargetForEmptyStruct wptr = wptr
@@ -280,35 +330,13 @@ setFar wptr doubleFar pos id = wptr
                    .|. (if doubleFar then 1 `shiftL` 2 else 0)
                    .|. (fromIntegral $ fromEnum (wirePointerKind wptr)) }
 
---------------------------------------------------------------------------------
-
+-----------
+-- TODO: move this out into a different file, or inline in Serialize.hs
 getRoot :: SegmentReader -> Ptr CPWord -> IO PointerReader
 getRoot segment location = do
     boundsCheck segment location (location `advancePtr` pointerSizeInWords) Struct
     return $ PointerReader segment (castPtr location)
-
---------------------------------------------------------------------------------
--- wire helpers
-
-roundBytesUpToWords :: ByteCount32 -> WordCount32
-roundBytesUpToWords bytes = fromIntegral $ (bytes + 7) `div` fromIntegral bytesPerWord
-
-roundBitsUpToWords :: BitCount64 -> WordCount32
-roundBitsUpToWords bits = fromIntegral $ (bits + 63) `div` fromIntegral bitsPerWord
-
-roundBitsUpToBytes :: BitCount64 -> ByteCount32
-roundBitsUpToBytes bytes = fromIntegral $ (bytes + 7) `div` fromIntegral bitsPerByte
-
-boundsCheck :: SegmentReader -> Ptr CPWord -> Ptr CPWord -> WirePointerKind -> IO ()
-boundsCheck segment start end kind =
-    unless (isNull segment || containsInterval segment start end) $
-      fail $ case kind of
-                    List -> "Message contained out-of-bounds list pointer."
-                    Struct -> "Message contained out-of-bounds struct pointer."
-                    Far -> "Message contained out-of-bounds far pointer."
-                    Other -> "Message contained out-of-bounds other pointer."
-
---------------------------------------------------------------------------------
+-----------
 
 allocate :: Ptr WirePointer -> SegmentBuilder -> WordCount32 -> WirePointerKind
          -> IO ( Ptr WirePointer -- The wire-ptr ref
@@ -581,11 +609,6 @@ totalSize segment ref = do
                     then return MessageSize { wordCount = 0, capCount = 1 }
                     else fail "Unknown pointer type."
 
--- This
---   ::std::ptr::copy_nonoverlapping(src, dst, count);
--- Is the same as
---   copyArray dst src count
-
 transferPointer :: SegmentBuilder -> Ptr WirePointer -> SegmentBuilder -> Ptr WirePointer -> IO ()
 transferPointer dstSegment dst srcSegment src = do
     src' <- peek src
@@ -615,20 +638,12 @@ transferPointerSplit dstSegment dst srcSegment srcTag srcPtr =
                 dst' <- peek dst
                 let landingPad = castPtr landingPadWord :: Ptr WirePointer
                     offset = calculateTargetOffset landingPad srcPtr
-                landingPad' <- return $ setOffsetAndKind nullWirePointer offset (wirePointerKind srcTag')
+                landingPad' <- return $ setOffsetAndKind defaultWirePointer offset (wirePointerKind srcTag')
                 landingPad' <- return $ landingPad' { upper32Bits = upper32Bits srcTag' }
                 poke landingPad landingPad'
 
                 dst' <- return $ setFar dst' False (getWordOffsetTo srcSegment landingPadWord) (segmentBuilderId srcSegment)
                 poke dst dst'
-
-data StructSize = StructSize
-  { structSizeData :: WordCount16
-  , structSizePointers :: WirePointerCount16
-  }
-
-structSizeTotal :: StructSize -> WordCount32
-structSizeTotal (StructSize x y) = fromIntegral x + fromIntegral y
 
 initStructPointer :: Ptr WirePointer -> SegmentBuilder -> StructSize -> IO StructBuilder
 initStructPointer ref segment size = do
@@ -755,7 +770,7 @@ getWritableListPointer origRef origSegment elemSize defaultValue = do
       then do
           null <- wirePtrRefIsNull (castPtr defaultValue)
           if null
-            then return nullUntypedListBuilder
+            then return defaultUntypedListBuilder
             else fail "unimplemented"
       else do
           let ref = origRef
@@ -786,7 +801,7 @@ getWritableListPointer origRef origSegment elemSize defaultValue = do
                             segment
                             ptr
                             (inlineCompositeListElementCount tag')
-                            (wordSize (toStructRef tag') * fromIntegral bitsPerWord)
+                            (structRefWordSize (toStructRef tag') * fromIntegral bitsPerWord)
                             (fromIntegral dataSize * fromIntegral bitsPerWord)
                             pointerCount
                     commonCase = do
@@ -828,7 +843,7 @@ getWritableStructListPointer origRef origSegment elemSize defaultValue = do
     if isNull origRef'
       then
           if defaultValue == nullPtr
-            then return nullUntypedListBuilder
+            then return defaultUntypedListBuilder
             else fail "unimplemented"
       else do
           -- We must verify that the pointer has the right size and potentially upgrade it if not.
@@ -1168,7 +1183,7 @@ copyPointer dstSegment dst srcSegment src = do
                             fail "InlineComposite lists of non-STRUCT type are not supported."
 
                         let elemCount = inlineCompositeListElementCount tag'
-                            wordsPerElement = wordSize $ toStructRef tag'
+                            wordsPerElement = structRefWordSize $ toStructRef tag'
 
                         when (wordsPerElement * elemCount > wordCount) $
                             fail "InlineComposite list's elements overrun its word count."
@@ -1204,84 +1219,24 @@ copyPointer dstSegment dst srcSegment src = do
                       fail "Unknown pointer type."
                   fail "not implemented"
 
--- TODO: assert ptr > segPtr
-getWordOffsetTo :: SegmentBuilder -> Ptr a -> WordCount32
-getWordOffsetTo segment ptr = fromIntegral wordCount
-  where
-    byteOffset = ptr `minusPtr` unsafeSegmentBuilderPtr segment
-    wordCount = byteOffset `div` bytesPerWord
+getStruct :: PointerReader -> Ptr CPWord -> IO StructReader
+getStruct reader = readStructPointer (pointerReaderSegment reader) (pointerReaderData reader)
 
---------------------------------------------------------------------------------
-
-getData :: PointerReader -> Ptr CPWord -> ByteCount32 -> IO DataReader
-getData reader =
-    readDataPointer (pointerReaderSegment reader) (pointerReaderData reader)
-
-readDataPointer :: SegmentReader -> Ptr WirePointer -> Ptr CPWord -> ByteCount32 -> IO DataReader
-readDataPointer segment ref defaultValue defaultSize = withSegmentReader segment $ \_ -> do
-    pred <- wirePtrRefIsNull ref
-    if pred
+readStructPointer :: SegmentReader -> Ptr WirePointer -> Ptr CPWord -> IO StructReader
+readStructPointer segment ref defaultValue = withSegmentReader segment $ \_ ->
+    if isNull ref
       then do
-          pred <- wirePtrRefIsNull (castPtr defaultValue)
+          pred <- wirePtrRefIsNull $ castPtr defaultValue
           if pred
-            then return $ DataReader Nothing
-            else do
-                p <- newForeignPtr_ defaultValue
-                let bs = BS.fromForeignPtr (castForeignPtr p) 0 (fromIntegral defaultSize)
-                return $ DataReader $ Just $ bs
+            then return defaultStructReader
+            else fail "Data.CapnProto.Layout.readStructPointer: not implemented"
       else do
           (wirePtr, content, segment) <- followFars ref segment
-          let listRef = toListRef wirePtr
-              size = listRefElementCount listRef
-          when (wirePointerKind wirePtr /= List) $
-            fail "Message contains non-list pointer where data was expected."
-          when (listRefElementSize listRef /= SzByte) $
-            fail "Message contains list pointer of non-bytes where text was expected."
-
+          let dataWords = structRefDataSize . toStructRef $ wirePtr
+              numPtrs = structRefPtrCount . toStructRef $ wirePtr
+              ptrs = castPtr $ content `advancePtr` fromIntegral dataWords :: Ptr WirePointer
           -- XXX bounds check
-
-          let bs = BS.fromForeignPtr (segmentReaderForeignPtr segment) (content `minusPtr` unsafeSegmentReaderPtr segment) (fromIntegral size)
-          return $ DataReader $ Just bs
-
-getText :: PointerReader -> Ptr CPWord -> ByteCount32 -> IO TextReader
-getText reader =
-    readTextPointer (pointerReaderSegment reader) (pointerReaderData reader)
-
-readTextPointer :: SegmentReader -> Ptr WirePointer -> Ptr CPWord -> ByteCount32 -> IO TextReader
-readTextPointer segment ref defaultValue defaultSize = withSegmentReader segment $ \sptr -> do
-    pred <- wirePtrRefIsNull ref
-    if pred
-      then do
-          pred <- wirePtrRefIsNull (castPtr defaultValue)
-          if pred
-            then return $ TextReader Nothing
-            else do
-                p <- newForeignPtr_ defaultValue
-                let bs = BS.fromForeignPtr (castForeignPtr p) 0 (fromIntegral defaultSize)
-                return $ TextReader $ Just $ bs
-      else do
-          (wirePtr, content, segment) <- followFars ref segment
-          let listRef = toListRef wirePtr
-              size = listRefElementCount listRef
-
-          when (wirePointerKind wirePtr /= List) $
-            fail "Message contains non-list pointer where text was expected."
-          when (listRefElementSize listRef /= SzByte) $
-            fail "Message contains list pointer of non-bytes where text was expected."
-
-          -- XXX bounds check
-
-          when (size <= 0) $
-            fail "Message contains text that is not NUL-terminated."
-
-          let strPtr = castPtr content :: Ptr CChar
-          lastByte <- peek (strPtr `plusPtr` (fromIntegral size - 1)) :: IO CChar
-          when (lastByte /= 0) $
-            fail "Message contains text that is not NUL-terminated"
-
-          let bs = BS.fromForeignPtr (segmentReaderForeignPtr segment) (content `minusPtr` unsafeSegmentReaderPtr segment) (fromIntegral size - 1)
-
-          return $ TextReader $ Just bs
+          return $ StructReader segment (castPtr content) ptrs (fromIntegral dataWords * fromIntegral bitsPerWord) numPtrs
 
 getList :: PointerReader -> ElementSize -> Ptr CPWord -> IO UntypedListReader
 getList reader expectedSize =
@@ -1313,7 +1268,7 @@ readListPointer segment expectedSize ref defaultValue = withSegmentReader segmen
 
                   let size = inlineCompositeListElementCount tag
                       structRef = toStructRef tag
-                      wordsPerElement = wordSize structRef
+                      wordsPerElement = structRefWordSize structRef
                       wordCount = listRefInlineCompositeWordCount listRef
 
                   when (size * wordsPerElement > wordCount) $
@@ -1372,50 +1327,78 @@ readListPointer segment expectedSize ref defaultValue = withSegmentReader segmen
                     dataSize
                     (fromIntegral pointerCount)
 
-getStruct :: PointerReader -> Ptr CPWord -> IO StructReader
-getStruct reader = readStructPointer (pointerReaderSegment reader) (pointerReaderData reader)
+getText :: PointerReader -> Ptr CPWord -> ByteCount32 -> IO TextReader
+getText reader =
+    readTextPointer (pointerReaderSegment reader) (pointerReaderData reader)
 
-readStructPointer :: SegmentReader -> Ptr WirePointer -> Ptr CPWord -> IO StructReader
-readStructPointer segment ref defaultValue = withSegmentReader segment $ \_ ->
-    if isNull ref
+readTextPointer :: SegmentReader -> Ptr WirePointer -> Ptr CPWord -> ByteCount32 -> IO TextReader
+readTextPointer segment ref defaultValue defaultSize = withSegmentReader segment $ \sptr -> do
+    pred <- wirePtrRefIsNull ref
+    if pred
       then do
-          pred <- wirePtrRefIsNull $ castPtr defaultValue
+          pred <- wirePtrRefIsNull (castPtr defaultValue)
           if pred
-            then return defaultStructReader
-            else fail "Data.CapnProto.Layout.readStructPointer: not implemented"
+            then return $ TextReader Nothing
+            else do
+                p <- newForeignPtr_ defaultValue
+                let bs = BS.fromForeignPtr (castForeignPtr p) 0 (fromIntegral defaultSize)
+                return $ TextReader $ Just $ bs
       else do
           (wirePtr, content, segment) <- followFars ref segment
-          let dataWords = structRefDataSize . toStructRef $ wirePtr
-              numPtrs = structRefPtrCount . toStructRef $ wirePtr
-              ptrs = castPtr $ content `advancePtr` fromIntegral dataWords :: Ptr WirePointer
+          let listRef = toListRef wirePtr
+              size = listRefElementCount listRef
+
+          when (wirePointerKind wirePtr /= List) $
+            fail "Message contains non-list pointer where text was expected."
+          when (listRefElementSize listRef /= SzByte) $
+            fail "Message contains list pointer of non-bytes where text was expected."
+
           -- XXX bounds check
-          return $ StructReader segment (castPtr content) ptrs (fromIntegral dataWords * fromIntegral bitsPerWord) numPtrs
 
-wirePtrRefIsNull :: Ptr WirePointer -> IO Bool
-wirePtrRefIsNull ref =
-    if ref == nullPtr
-      then return True
+          when (size <= 0) $
+            fail "Message contains text that is not NUL-terminated."
+
+          let strPtr = castPtr content :: Ptr CChar
+          lastByte <- peek (strPtr `plusPtr` (fromIntegral size - 1)) :: IO CChar
+          when (lastByte /= 0) $
+            fail "Message contains text that is not NUL-terminated"
+
+          let bs = BS.fromForeignPtr (segmentReaderForeignPtr segment) (content `minusPtr` unsafeSegmentReaderPtr segment) (fromIntegral size - 1)
+
+          return $ TextReader $ Just bs
+
+getData :: PointerReader -> Ptr CPWord -> ByteCount32 -> IO DataReader
+getData reader =
+    readDataPointer (pointerReaderSegment reader) (pointerReaderData reader)
+
+readDataPointer :: SegmentReader -> Ptr WirePointer -> Ptr CPWord -> ByteCount32 -> IO DataReader
+readDataPointer segment ref defaultValue defaultSize = withSegmentReader segment $ \_ -> do
+    pred <- wirePtrRefIsNull ref
+    if pred
+      then do
+          pred <- wirePtrRefIsNull (castPtr defaultValue)
+          if pred
+            then return $ DataReader Nothing
+            else do
+                p <- newForeignPtr_ defaultValue
+                let bs = BS.fromForeignPtr (castForeignPtr p) 0 (fromIntegral defaultSize)
+                return $ DataReader $ Just $ bs
       else do
-          wirePtr <- peek ref
-          return $ isNull wirePtr
+          (wirePtr, content, segment) <- followFars ref segment
+          let listRef = toListRef wirePtr
+              size = listRefElementCount listRef
+          when (wirePointerKind wirePtr /= List) $
+            fail "Message contains non-list pointer where data was expected."
+          when (listRefElementSize listRef /= SzByte) $
+            fail "Message contains list pointer of non-bytes where text was expected."
 
-pointersPerElement :: ElementSize -> WirePointerCount32
-pointersPerElement size =
-    case size of
-        SzPointer -> 1
-        _ -> 0
+          -- XXX bounds check
 
-dataBitsPerElement :: ElementSize -> BitCount32
-dataBitsPerElement size =
-    case size of
-        SzVoid -> 0
-        SzBit -> 1
-        SzByte -> 8
-        SzTwoBytes -> 16
-        SzFourBytes -> 32
-        SzEightBytes -> 64
-        SzPointer -> 0
-        SzInlineComposite -> 0
+          let bs = BS.fromForeignPtr (segmentReaderForeignPtr segment) (content `minusPtr` unsafeSegmentReaderPtr segment) (fromIntegral size)
+          return $ DataReader $ Just bs
+
+--------------------------------------------------------------------------------
+-- Structs
 
 instance Nullable StructReader where
     isNull reader = structReaderData reader == nullPtr
@@ -1432,6 +1415,36 @@ class FromStructReader a where
 instance FromStructReader StructReader where
     fromStructReader = return
 
+getDataField :: (Storable a, Num a) => StructReader -> ElementCount -> IO a
+getDataField = getDataFieldHack undefined
+  where
+    getDataFieldHack :: (Storable a, Num a) => a -> StructReader -> ElementCount -> IO a
+    getDataFieldHack dummy reader offset = withSegmentReader (structReaderSegment reader) $ \_ ->
+        if bitOffset <= dataBits
+          then peekElemOff (castPtr (structReaderData reader)) (fromIntegral offset)
+          else return 0
+      where
+        bitOffset = (fromIntegral offset + 1) * (sizeOf dummy * bitsPerByte)
+        dataBits = fromIntegral (structReaderDataSize reader)
+
+getBoolField :: StructReader -> ElementCount -> IO Bool
+getBoolField reader offset = withSegmentReader (structReaderSegment reader) $ \_ ->
+    if bitOffset < structReaderDataSize reader
+      then do
+          byte <- peekElemOff (structReaderData reader) (fromIntegral q) :: IO Word8
+          return $ byte .&. (1 `shiftL` (fromIntegral r)) /= 0
+      else return False
+  where
+    bitOffset = fromIntegral offset
+    (q,r) = bitOffset `quotRem` fromIntegral bitsPerByte
+
+getPointerField :: StructReader -> WirePointerCount -> PointerReader
+getPointerField reader ptrIndex =
+    if (fromIntegral ptrIndex) < structReaderPtrCount reader
+        then PointerReader
+               (structReaderSegment reader)
+               (structReaderPointers reader `advancePtr` fromIntegral ptrIndex)
+        else defaultPointerReader
 
 class StructField a where
     type DefaultTy a :: *
@@ -1512,55 +1525,10 @@ instance (ListElement a) => StructField (ListReader a) where
           where
             ptrReader = getPointerField reader (fromIntegral index)
 
-class AsReader builder where
-    type ReaderTy builder :: *
-    asReader :: builder -> ReaderTy builder
-
----------------------
-
-getDataField :: (Storable a, Num a) => StructReader -> ElementCount -> IO a
-getDataField = getDataFieldHack undefined
-  where
-    getDataFieldHack :: (Storable a, Num a) => a -> StructReader -> ElementCount -> IO a
-    getDataFieldHack dummy reader offset = withSegmentReader (structReaderSegment reader) $ \_ ->
-        if bitOffset <= dataBits
-          then peekElemOff (castPtr (structReaderData reader)) (fromIntegral offset)
-          else return 0
-      where
-        bitOffset = (fromIntegral offset + 1) * (sizeOf dummy * bitsPerByte)
-        dataBits = fromIntegral (structReaderDataSize reader)
-
-getBoolField :: StructReader -> ElementCount -> IO Bool
-getBoolField reader offset = withSegmentReader (structReaderSegment reader) $ \_ ->
-    if bitOffset < structReaderDataSize reader
-      then do
-          byte <- peekElemOff (structReaderData reader) (fromIntegral q) :: IO Word8
-          return $ byte .&. (1 `shiftL` (fromIntegral r)) /= 0
-      else return False
-  where
-    bitOffset = fromIntegral offset
-    (q,r) = bitOffset `quotRem` fromIntegral bitsPerByte
-
-getPointerField :: StructReader -> WirePointerCount -> PointerReader
-getPointerField reader ptrIndex =
-    if (fromIntegral ptrIndex) < structReaderPtrCount reader
-        then PointerReader
-               (structReaderSegment reader)
-               (structReaderPointers reader `advancePtr` fromIntegral ptrIndex)
-        else defaultPointerReader
-
 --------------------------------------------------------------------------------
+-- Lists
 
-defaultStructReader :: StructReader
-defaultStructReader = StructReader nullSegmentReader nullPtr nullPtr 0 0
-
-defaultPointerReader :: PointerReader
-defaultPointerReader = PointerReader nullSegmentReader nullPtr
-
-defaultUntypedListReader :: UntypedListReader
-defaultUntypedListReader = UntypedListReader nullSegmentReader nullPtr 0 0 0 0
-
---------------------------------------------------------------------------------
+newtype ListReader a = ListReader UntypedListReader
 
 getStructElement :: UntypedListReader -> ElementCount32 -> StructReader
 getStructElement reader index =
@@ -1580,59 +1548,6 @@ getPointerElement reader index =
   where
     ptr = untypedListReaderData reader `plusPtr` offset
     offset = fromIntegral index * (fromIntegral (untypedListReaderStep reader `div` fromIntegral bitsPerByte))
-
---------------------------------------------------------------------------------
-
--- TODO: rewrite-rules for:
---          map f (toList reader)
---          map f (reverse (toList reader))
---          foldM f (reverse (toList reader))
-newtype ListReader a = ListReader UntypedListReader
-
-listLength :: ListReader a -> ElementCount
-listLength (ListReader reader) = fromIntegral $ untypedListReaderElementCount reader
-
-toList :: (ListElement a) => ListReader a -> IO [a]
-toList list = mapM (getElement list) [0..listLength list-1]
-
-eachElement_ :: (ListElement a) => ListReader a -> (a -> IO b) -> IO ()
-eachElement_ list fn =
-    unless (listLength list == 0) $
-      mapM_ (fn <=< getElement list) [0..listLength list-1]
-
-eachElement :: (ListElement a) => ListReader a -> (a -> IO b) -> IO [b]
-eachElement list fn =
-    if listLength list == 0
-      then return []
-      else mapM (fn <=< getElement list) [0..listLength list-1]
-
-mapElements :: (ListElement a) => (a -> IO b) -> ListReader a -> IO [b]
-mapElements fn list =
-    if listLength list == 0
-      then return []
-      else mapM (fn <=< getElement list) [0..listLength list-1]
-
-foldrElements :: (ListElement a) => (a -> b -> IO b) -> b -> ListReader a -> IO b
-foldrElements f z0 list = go len z0
-  where
-    len = listLength list
-    go n z =
-        if n == 0
-          then return z
-          else do
-              elem <- getElement list (n-1)
-              f elem z >>= go (n-1)
-
-foldlElements :: (ListElement a) => (b -> a -> IO b) -> b -> ListReader a -> IO b
-foldlElements f z0 list = go 0 z0
-  where
-    len = listLength list
-    go n z =
-        if n == len
-          then return z
-          else do
-              elem <- getElement list n
-              f z elem >>= go (n+1)
 
 -- TODO:
 -- * assert index < len
@@ -1717,6 +1632,56 @@ instance (ListElement a) => ListElement (ListReader a) where
             ptrReader = getPointerElement reader (fromIntegral index)
 
 --------------------------------------------------------------------------------
+-- List Utils (TODO: rewrite-rules (if needed))
+
+listLength :: ListReader a -> ElementCount
+listLength (ListReader reader) = fromIntegral $ untypedListReaderElementCount reader
+
+toList :: (ListElement a) => ListReader a -> IO [a]
+toList list = mapM (getElement list) [0..listLength list-1]
+
+eachElement_ :: (ListElement a) => ListReader a -> (a -> IO b) -> IO ()
+eachElement_ list fn =
+    unless (listLength list == 0) $
+      mapM_ (fn <=< getElement list) [0..listLength list-1]
+
+eachElement :: (ListElement a) => ListReader a -> (a -> IO b) -> IO [b]
+eachElement list fn =
+    if listLength list == 0
+      then return []
+      else mapM (fn <=< getElement list) [0..listLength list-1]
+
+mapElements :: (ListElement a) => (a -> IO b) -> ListReader a -> IO [b]
+mapElements fn list =
+    if listLength list == 0
+      then return []
+      else mapM (fn <=< getElement list) [0..listLength list-1]
+
+foldrElements :: (ListElement a) => (a -> b -> IO b) -> b -> ListReader a -> IO b
+foldrElements f z0 list = go len z0
+  where
+    len = listLength list
+    go n z =
+        if n == 0
+          then return z
+          else do
+              elem <- getElement list (n-1)
+              f elem z >>= go (n-1)
+
+foldlElements :: (ListElement a) => (b -> a -> IO b) -> b -> ListReader a -> IO b
+foldlElements f z0 list = go 0 z0
+  where
+    len = listLength list
+    go n z =
+        if n == len
+          then return z
+          else do
+              elem <- getElement list n
+              f z elem >>= go (n+1)
+
+--------------------------------------------------------------------------------
+-- Misc. Utils
+
 loop :: (Monad m, Num a, Eq a) => a -> a -> (a -> m b) -> m ()
 loop start end f = loopFold_ start end () (\_ x -> void $ f x )
 
