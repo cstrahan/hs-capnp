@@ -75,8 +75,8 @@ data Value =
   | ValUInt64 Word64
   | ValFloat32 Float
   | ValFloat64 Double
-  | ValText (Maybe Text) -- UTF-8, NUL-terminated
-  | ValData (Maybe Data) -- completely arbitrary sequence of bytes
+  | ValText Text -- UTF-8, NUL-terminated
+  | ValData Data -- completely arbitrary sequence of bytes
   | ValList AnyPointer
   | ValEnum Word16
   | ValStruct AnyPointer
@@ -378,8 +378,8 @@ readSchema handle = do
             G.Value_uint64 val -> return $ ValUInt64 val
             G.Value_float32 val -> return $ ValFloat32 val
             G.Value_float64 val -> return $ ValFloat64 val
-            G.Value_text val -> return $ ValText (textToMaybeString val)
-            G.Value_data val -> return $ ValData Nothing -- XXX
+            G.Value_text val -> return $ ValText (textToString val)
+            G.Value_data val -> return $ ValData "" -- XXX
             G.Value_list val -> return $ ValList AnyPointer
             G.Value_enum val -> return $ ValEnum val
             G.Value_struct val -> return $ ValStruct AnyPointer
@@ -412,11 +412,7 @@ readSchema handle = do
             G.ElementSize_pointer -> return SzPointer
             G.ElementSize_inlineComposite -> return SzInlineComposite
 
-    textToString (L.TextReader (Just name)) = BSC.unpack name
-    textToString _ = ""
-
-    textToMaybeString (L.TextReader (Just name)) = Just $ BSC.unpack name
-    textToMaybeString _ = Nothing
+    textToString (L.TextReader name) = BSC.unpack name
 
     nodeId node =
         case node of

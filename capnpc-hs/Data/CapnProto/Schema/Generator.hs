@@ -88,18 +88,16 @@ renderFieldDefault node (Field name _ _ _ kind _ ) =
             if not explicitDefault
               then Nothing
               else case def of
-                       ValData mdatum ->
-                           case mdatum of
-                               Nothing -> Nothing
-                               Just datum ->
-                                   Just $ defName<>" :: Ptr L.WirePointer\n"<>
-                                          defName<>" = Ptr "<>show datum<>"#"
-                       ValText mtxt ->
-                           case mtxt of
-                               Nothing -> Nothing
-                               Just txt ->
-                                   Just $ defName<>" :: Ptr L.WirePointer\n"<>
-                                          defName<>" = Ptr "<>show (txt<>"\NUL")<>"#"
+                       ValData datum ->
+                           case datum of
+                               "" -> Nothing
+                               _ -> Just $ defName<>" :: Ptr L.WirePointer\n"<>
+                                           defName<>" = Ptr "<>show datum<>"#"
+                       ValText txt ->
+                           case txt of
+                               "" -> Nothing
+                               _ -> Just $ defName<>" :: Ptr L.WirePointer\n"<>
+                                           defName<>" = Ptr "<>show (txt<>"\NUL")<>"#"
                        ValList list -> notImplemented
                        ValStruct struct -> notImplemented
                        ValAnyPointer ptr -> notImplemented
