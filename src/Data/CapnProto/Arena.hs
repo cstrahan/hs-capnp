@@ -39,6 +39,10 @@ data SegmentReader = SegmentReader
 instance Nullable (SegmentReader) where
     isNull segment = unsafeSegmentReaderPtr segment == nullPtr
 
+instance AsReader SegmentReader where
+    type ReaderTy SegmentReader = SegmentReader
+    asReader = id
+
 data SegmentBuilder = SegmentBuilder
   { segmentBuilderSegmentReader :: SegmentReader
   , segmentBuilderId            :: SegmentId

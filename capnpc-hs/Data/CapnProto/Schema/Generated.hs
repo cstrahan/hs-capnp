@@ -1,15 +1,17 @@
+{-# LANGUAGE MagicHash    #-}
 {-# LANGUAGE TypeFamilies #-}
-{-# LANGUAGE MagicHash #-}
-{-# LANGUAGE BangPatterns #-}
 
 module Data.CapnProto.Schema.Generated where
 
 import           Data.Int
+import           Data.Coerce
 import           Data.Word
+import           Foreign.Ptr (nullPtr)
 import           GHC.Exts (Ptr(..))
 import           GHC.Prim (Addr#)
 
 import qualified Data.CapnProto.Layout as L
+
 
 data Annotation_Reader = Annotation_Reader L.StructReader
 
@@ -18,8 +20,10 @@ instance L.FromStructReader Annotation_Reader where
 
 instance L.ListElement Annotation_Reader where
     elementSize _ = L.SzInlineComposite
-    getUntypedElement reader index =
-        fmap Annotation_Reader $ L.getUntypedElement reader index
+    getReaderElement reader index =
+        fmap Annotation_Reader $ (L.getReaderElement (coerce reader) index)
+    getBuilderElement = undefined
+    setBuilderElement = undefined
 
 instance HasId Annotation_Reader where
     type IdTy Annotation_Reader = Word64
@@ -41,8 +45,10 @@ instance L.FromStructReader Brand_Reader where
 
 instance L.ListElement Brand_Reader where
     elementSize _ = L.SzInlineComposite
-    getUntypedElement reader index =
-        fmap Brand_Reader $ L.getUntypedElement reader index
+    getReaderElement reader index =
+        fmap Brand_Reader $ L.getReaderElement (coerce reader) index
+    getBuilderElement = undefined
+    setBuilderElement = undefined
 
 instance HasScopes Brand_Reader where
     type ScopesTy Brand_Reader = (L.ListReader Brand_Scope_Reader)
@@ -56,8 +62,10 @@ instance L.FromStructReader Brand_Binding_Reader where
 
 instance L.ListElement Brand_Binding_Reader where
     elementSize _ = L.SzInlineComposite
-    getUntypedElement reader index =
-        fmap Brand_Binding_Reader $ L.getUntypedElement reader index
+    getReaderElement reader index =
+        fmap Brand_Binding_Reader $ L.getReaderElement (coerce reader) index
+    getBuilderElement = undefined
+    setBuilderElement = undefined
 
 data Brand_Binding_Which_Reader
   = Brand_Binding_NotInSchema Word16
@@ -81,8 +89,10 @@ instance L.FromStructReader Brand_Scope_Reader where
 
 instance L.ListElement Brand_Scope_Reader where
     elementSize _ = L.SzInlineComposite
-    getUntypedElement reader index =
-        fmap Brand_Scope_Reader $ L.getUntypedElement reader index
+    getReaderElement reader index =
+        fmap Brand_Scope_Reader $ L.getReaderElement (coerce reader) index
+    getBuilderElement = undefined
+    setBuilderElement = undefined
 
 instance HasScopeId Brand_Scope_Reader where
     type ScopeIdTy Brand_Scope_Reader = Word64
@@ -110,8 +120,10 @@ instance L.FromStructReader CodeGeneratorRequest_Reader where
 
 instance L.ListElement CodeGeneratorRequest_Reader where
     elementSize _ = L.SzInlineComposite
-    getUntypedElement reader index =
-        fmap CodeGeneratorRequest_Reader $ L.getUntypedElement reader index
+    getReaderElement reader index =
+        fmap CodeGeneratorRequest_Reader $ L.getReaderElement (coerce reader) index
+    getBuilderElement = undefined
+    setBuilderElement = undefined
 
 instance HasNodes CodeGeneratorRequest_Reader where
     type NodesTy CodeGeneratorRequest_Reader = (L.ListReader Node_Reader)
@@ -129,8 +141,10 @@ instance L.FromStructReader CodeGeneratorRequest_RequestedFile_Reader where
 
 instance L.ListElement CodeGeneratorRequest_RequestedFile_Reader where
     elementSize _ = L.SzInlineComposite
-    getUntypedElement reader index =
-        fmap CodeGeneratorRequest_RequestedFile_Reader $ L.getUntypedElement reader index
+    getReaderElement reader index =
+        fmap CodeGeneratorRequest_RequestedFile_Reader $ L.getReaderElement (coerce reader) index
+    getBuilderElement = undefined
+    setBuilderElement = undefined
 
 instance HasId CodeGeneratorRequest_RequestedFile_Reader where
     type IdTy CodeGeneratorRequest_RequestedFile_Reader = Word64
@@ -152,8 +166,10 @@ instance L.FromStructReader CodeGeneratorRequest_RequestedFile_Import_Reader whe
 
 instance L.ListElement CodeGeneratorRequest_RequestedFile_Import_Reader where
     elementSize _ = L.SzInlineComposite
-    getUntypedElement reader index =
-        fmap CodeGeneratorRequest_RequestedFile_Import_Reader $ L.getUntypedElement reader index
+    getReaderElement reader index =
+        fmap CodeGeneratorRequest_RequestedFile_Import_Reader $ L.getReaderElement (coerce reader) index
+    getBuilderElement = undefined
+    setBuilderElement = undefined
 
 instance HasId CodeGeneratorRequest_RequestedFile_Import_Reader where
     type IdTy CodeGeneratorRequest_RequestedFile_Import_Reader = Word64
@@ -171,8 +187,10 @@ instance L.FromStructReader Enumerant_Reader where
 
 instance L.ListElement Enumerant_Reader where
     elementSize _ = L.SzInlineComposite
-    getUntypedElement reader index =
-        fmap Enumerant_Reader $ L.getUntypedElement reader index
+    getReaderElement reader index =
+        fmap Enumerant_Reader $ L.getReaderElement (coerce reader) index
+    getBuilderElement = undefined
+    setBuilderElement = undefined
 
 instance HasName Enumerant_Reader where
     type NameTy Enumerant_Reader = L.TextReader
@@ -194,8 +212,10 @@ instance L.FromStructReader Field_Reader where
 
 instance L.ListElement Field_Reader where
     elementSize _ = L.SzInlineComposite
-    getUntypedElement reader index =
-        fmap Field_Reader $ L.getUntypedElement reader index
+    getReaderElement reader index =
+        fmap Field_Reader $ L.getReaderElement (coerce reader) index
+    getBuilderElement = undefined
+    setBuilderElement = undefined
 
 instance HasName Field_Reader where
     type NameTy Field_Reader = L.TextReader
@@ -282,8 +302,10 @@ instance L.FromStructReader Method_Reader where
 
 instance L.ListElement Method_Reader where
     elementSize _ = L.SzInlineComposite
-    getUntypedElement reader index =
-        fmap Method_Reader $ L.getUntypedElement reader index
+    getReaderElement reader index =
+        fmap Method_Reader $ L.getReaderElement (coerce reader) index
+    getBuilderElement = undefined
+    setBuilderElement = undefined
 
 instance HasName Method_Reader where
     type NameTy Method_Reader = L.TextReader
@@ -325,8 +347,10 @@ instance L.FromStructReader Node_Reader where
 
 instance L.ListElement Node_Reader where
     elementSize _ = L.SzInlineComposite
-    getUntypedElement reader index =
-        fmap Node_Reader $ L.getUntypedElement reader index
+    getReaderElement reader index =
+        fmap Node_Reader $ L.getReaderElement (coerce reader) index
+    getBuilderElement = undefined
+    setBuilderElement = undefined
 
 instance HasId Node_Reader where
     type IdTy Node_Reader = Word64
@@ -390,8 +414,10 @@ instance L.FromStructReader Node_NestedNode_Reader where
 
 instance L.ListElement Node_NestedNode_Reader where
     elementSize _ = L.SzInlineComposite
-    getUntypedElement reader index =
-        fmap Node_NestedNode_Reader $ L.getUntypedElement reader index
+    getReaderElement reader index =
+        fmap Node_NestedNode_Reader $ L.getReaderElement (coerce reader) index
+    getBuilderElement = undefined
+    setBuilderElement = undefined
 
 instance HasName Node_NestedNode_Reader where
     type NameTy Node_NestedNode_Reader = L.TextReader
@@ -409,8 +435,10 @@ instance L.FromStructReader Node_Parameter_Reader where
 
 instance L.ListElement Node_Parameter_Reader where
     elementSize _ = L.SzInlineComposite
-    getUntypedElement reader index =
-        fmap Node_Parameter_Reader $ L.getUntypedElement reader index
+    getReaderElement reader index =
+        fmap Node_Parameter_Reader $ L.getReaderElement (coerce reader) index
+    getBuilderElement = undefined
+    setBuilderElement = undefined
 
 instance HasName Node_Parameter_Reader where
     type NameTy Node_Parameter_Reader = L.TextReader
@@ -539,8 +567,10 @@ instance L.FromStructReader Superclass_Reader where
 
 instance L.ListElement Superclass_Reader where
     elementSize _ = L.SzInlineComposite
-    getUntypedElement reader index =
-        fmap Superclass_Reader $ L.getUntypedElement reader index
+    getReaderElement reader index =
+        fmap Superclass_Reader $ L.getReaderElement (coerce reader) index
+    getBuilderElement = undefined
+    setBuilderElement = undefined
 
 instance HasId Superclass_Reader where
     type IdTy Superclass_Reader = Word64
@@ -558,8 +588,10 @@ instance L.FromStructReader Type_Reader where
 
 instance L.ListElement Type_Reader where
     elementSize _ = L.SzInlineComposite
-    getUntypedElement reader index =
-        fmap Type_Reader $ L.getUntypedElement reader index
+    getReaderElement reader index =
+        fmap Type_Reader $ L.getReaderElement (coerce reader) index
+    getBuilderElement = undefined
+    setBuilderElement = undefined
 
 data Type_Which_Reader
   = Type_NotInSchema Word16
@@ -694,8 +726,10 @@ instance L.FromStructReader Value_Reader where
 
 instance L.ListElement Value_Reader where
     elementSize _ = L.SzInlineComposite
-    getUntypedElement reader index =
-        fmap Value_Reader $ L.getUntypedElement reader index
+    getReaderElement reader index =
+        fmap Value_Reader $ L.getReaderElement (coerce reader) index
+    getBuilderElement = undefined
+    setBuilderElement = undefined
 
 data Value_Which_Reader
   = Value_NotInSchema Word16
@@ -788,8 +822,10 @@ instance Eq ElementSize where
 
 instance L.ListElement ElementSize where
     elementSize _ = L.SzTwoBytes
-    getUntypedElement reader index =
-        fmap (toEnum . fromIntegral) (L.getUntypedElement reader index :: IO Word16)
+    getReaderElement reader index =
+        fmap (toEnum . fromIntegral) (L.getReaderElement (coerce reader) index :: IO Word16)
+    getBuilderElement = undefined
+    setBuilderElement = undefined
 
 
 class HasAnnotations a where
@@ -1003,6 +1039,7 @@ class HasTypeId a where
 class HasValue a where
     type ValueTy a :: *
     getValue :: a -> IO (ValueTy a)
+
 
 
 

@@ -131,34 +131,34 @@ instance AsReader StructBuilder where
             (structBuilderDataSize builder)
             (structBuilderPtrCount builder)
 
-data UntypedListReader = UntypedListReader
-  { untypedListReaderSegment        :: SegmentReader
-  , untypedListReaderData           :: Ptr Word8
-  , untypedListReaderElementCount   :: ElementCount32
-  , untypedListReaderStep           :: BitCount32
-  , untypedListReaderStructDataSize :: BitCount32
-  , untypedListReaderStructPtrCount :: WirePointerCount16
+data ListReader a = ListReader
+  { listReaderSegment        :: SegmentReader
+  , listReaderData           :: Ptr Word8
+  , listReaderElementCount   :: ElementCount32
+  , listReaderStep           :: BitCount32
+  , listReaderStructDataSize :: BitCount32
+  , listReaderStructPtrCount :: WirePointerCount16
   }
 
-data UntypedListBuilder = UntypedListBuilder
-  { untypedListBuilderSegment        :: SegmentBuilder
-  , untypedListBuilderData           :: Ptr Word8
-  , untypedListBuilderElementCount   :: ElementCount32
-  , untypedListBuilderStep           :: BitCount32
-  , untypedListBuilderStructDataSize :: BitCount32
-  , untypedListBuilderStructPtrCount :: WirePointerCount16
+data ListBuilder a = ListBuilder
+  { listBuilderSegment        :: SegmentBuilder
+  , listBuilderData           :: Ptr Word8
+  , listBuilderElementCount   :: ElementCount32
+  , listBuilderStep           :: BitCount32
+  , listBuilderStructDataSize :: BitCount32
+  , listBuilderStructPtrCount :: WirePointerCount16
   }
 
-instance AsReader UntypedListBuilder where
-    type ReaderTy UntypedListBuilder = UntypedListReader
+instance AsReader (ListBuilder a) where
+    type ReaderTy (ListBuilder a) = (ListReader a)
     asReader builder =
-        UntypedListReader
-            (asReader $ untypedListBuilderSegment builder)
-            (untypedListBuilderData builder)
-            (untypedListBuilderElementCount builder)
-            (untypedListBuilderStep builder)
-            (untypedListBuilderStructDataSize builder)
-            (untypedListBuilderStructPtrCount builder)
+        ListReader
+            (asReader $ listBuilderSegment builder)
+            (listBuilderData builder)
+            (listBuilderElementCount builder)
+            (listBuilderStep builder)
+            (listBuilderStructDataSize builder)
+            (listBuilderStructPtrCount builder)
 
 data StructRef = StructRef
     { structRefDataSize :: WordCount16
@@ -276,11 +276,11 @@ defaultStructReader = StructReader nullSegmentReader nullPtr nullPtr 0 0
 defaultPointerReader :: PointerReader
 defaultPointerReader = PointerReader nullSegmentReader nullPtr
 
-defaultUntypedListReader :: UntypedListReader
-defaultUntypedListReader = UntypedListReader nullSegmentReader nullPtr 0 0 0 0
+defaultListReader :: ListReader a
+defaultListReader = ListReader nullSegmentReader nullPtr 0 0 0 0
 
-defaultUntypedListBuilder :: UntypedListBuilder
-defaultUntypedListBuilder = UntypedListBuilder nullSegmentBuilder nullPtr 0 0 0 0
+defaultListBuilder :: ListBuilder a
+defaultListBuilder = ListBuilder nullSegmentBuilder nullPtr 0 0 0 0
 
 defaultWirePointer :: WirePointer
 defaultWirePointer = WirePointer { offsetAndKind = 0, upper32Bits = 0 }
@@ -735,7 +735,7 @@ getWritableStructPointer ref segment size defaultValue = do
                     (fromIntegral oldDataSize * fromIntegral bitsPerWord)
                     oldPointerCount
 
-initListPointer :: Ptr WirePointer -> SegmentBuilder -> ElementCount32 -> ElementSize -> IO UntypedListBuilder
+initListPointer :: Ptr WirePointer -> SegmentBuilder -> ElementCount32 -> ElementSize -> IO (ListBuilder a)
 initListPointer ref segment elemCount elemSize = do
     when (elemSize /= SzInlineComposite) $
       fail "Should have called initStructListPointer instead"
@@ -750,7 +750,7 @@ initListPointer ref segment elemCount elemSize = do
     poke ref ref'
 
     return $
-      UntypedListBuilder
+      ListBuilder
         segment
         (castPtr ptr)
         step
@@ -758,7 +758,7 @@ initListPointer ref segment elemCount elemSize = do
         dataSize
         (fromIntegral pointerCount)
 
-initStructListPointer :: Ptr WirePointer -> SegmentBuilder -> ElementCount32 -> StructSize -> IO UntypedListBuilder
+initStructListPointer :: Ptr WirePointer -> SegmentBuilder -> ElementCount32 -> StructSize -> IO (ListBuilder a)
 initStructListPointer ref segment elemCount elemSize = do
     let wordsPerElement = structSizeTotal elemSize
         wordCount = elemCount * wordsPerElement
@@ -778,7 +778,7 @@ initStructListPointer ref segment elemCount elemSize = do
     let ptr1 = ptr `advancePtr` 1
 
     return $
-      UntypedListBuilder
+      ListBuilder
         segment
         (castPtr ptr1)
         (wordsPerElement * fromIntegral bitsPerWord)
@@ -786,7 +786,7 @@ initStructListPointer ref segment elemCount elemSize = do
         (fromIntegral (structSizeData elemSize) * fromIntegral bitsPerWord)
         (structSizePointers elemSize)
 
-getWritableListPointer :: Ptr WirePointer -> SegmentBuilder -> ElementSize -> Ptr CPWord -> IO UntypedListBuilder
+getWritableListPointer :: Ptr WirePointer -> SegmentBuilder -> ElementSize -> Ptr CPWord -> IO (ListBuilder a)
 getWritableListPointer origRef origSegment elemSize defaultValue = do
     origRef' <- peek origRef
     origRefTarget <- wirePointerTarget origRef
@@ -794,7 +794,7 @@ getWritableListPointer origRef origSegment elemSize defaultValue = do
       then do
           null <- wirePtrRefIsNull (castPtr defaultValue)
           if null
-            then return defaultUntypedListBuilder
+            then return defaultListBuilder
             else fail "unimplemented"
       else do
           let ref = origRef
@@ -821,7 +821,7 @@ getWritableListPointer origRef origSegment elemSize defaultValue = do
                 let dataSize = structRefDataSize $ toStructRef tag'
                     pointerCount = structRefPtrCount $ toStructRef tag'
                     listFromPtr ptr =
-                        UntypedListBuilder
+                        ListBuilder
                             segment
                             ptr
                             (inlineCompositeListElementCount tag')
@@ -851,7 +851,7 @@ getWritableListPointer origRef origSegment elemSize defaultValue = do
                   fail "Existing list value is incompatible with expected type."
 
                 return $
-                  UntypedListBuilder
+                  ListBuilder
                     segment
                     (castPtr ptr)
                     step
@@ -859,7 +859,7 @@ getWritableListPointer origRef origSegment elemSize defaultValue = do
                     dataSize
                     (fromIntegral pointerCount)
 
-getWritableStructListPointer :: Ptr WirePointer -> SegmentBuilder -> StructSize -> Ptr CPWord -> IO UntypedListBuilder
+getWritableStructListPointer :: Ptr WirePointer -> SegmentBuilder -> StructSize -> Ptr CPWord -> IO (ListBuilder a)
 getWritableStructListPointer origRef origSegment elemSize defaultValue = do
     origRef' <- peek origRef
     origRefTarget <- wirePointerTarget origRef
@@ -867,7 +867,7 @@ getWritableStructListPointer origRef origSegment elemSize defaultValue = do
     if isNull origRef'
       then
           if defaultValue == nullPtr
-            then return defaultUntypedListBuilder
+            then return defaultListBuilder
             else fail "unimplemented"
       else do
           -- We must verify that the pointer has the right size and potentially upgrade it if not.
@@ -896,7 +896,7 @@ getWritableStructListPointer origRef origSegment elemSize defaultValue = do
                 if oldDataSize >= structSizeData elemSize && oldPointerCount >= structSizePointers elemSize
                   then
                     -- Old size is at least as large as we need. Ship it.
-                    return $ UntypedListBuilder
+                    return $ ListBuilder
                         oldSegment
                         (castPtr oldPtr)
                         elemCount
@@ -964,7 +964,7 @@ getWritableStructListPointer origRef origSegment elemSize defaultValue = do
                       zeroArray (castPtr oldPtr :: Ptr Word8) (fromIntegral $ roundBitsUpToBytes (fromIntegral oldStep * fromIntegral elemCount))
 
                       return $
-                        UntypedListBuilder
+                        ListBuilder
                             newSegment
                             (castPtr newPtr)
                             elemCount
@@ -1098,42 +1098,42 @@ setStructPointer segment ref value = do
 
     return ptr
 
-setListPointer :: SegmentBuilder -> Ptr WirePointer -> UntypedListReader -> IO (Ptr CPWord)
+setListPointer :: SegmentBuilder -> Ptr WirePointer -> ListReader a -> IO (Ptr CPWord)
 setListPointer segment ref value = do
-    let totalSize = roundBitsUpToWords (fromIntegral (untypedListReaderElementCount value) * fromIntegral (untypedListReaderStep value))
+    let totalSize = roundBitsUpToWords (fromIntegral (listReaderElementCount value) * fromIntegral (listReaderStep value))
 
-    if untypedListReaderStep value <= fromIntegral bitsPerWord
+    if listReaderStep value <= fromIntegral bitsPerWord
       then do
         -- List of non-structs.
         (ref, ptr, segment) <- allocate ref segment totalSize List
         ref' <- peek ref
 
-        if untypedListReaderStructPtrCount value == 1
+        if listReaderStructPtrCount value == 1
           then do
               -- List of pointers.
-              ref' <- return $ setListRef ref' SzPointer (untypedListReaderElementCount value)
+              ref' <- return $ setListRef ref' SzPointer (listReaderElementCount value)
               poke ref ref'
-              loop 0 (untypedListReaderElementCount value) $ \i ->
+              loop 0 (listReaderElementCount value) $ \i ->
                 copyPointer
                     segment
                     (castPtr $ ptr `advancePtr` fromIntegral i)
-                    (untypedListReaderSegment value)
-                    (castPtr $ untypedListReaderData value `advancePtr` fromIntegral i)
+                    (listReaderSegment value)
+                    (castPtr $ listReaderData value `advancePtr` fromIntegral i)
           else do
               -- List of data.
               elemSize <-
-                    case untypedListReaderStep value of
+                    case listReaderStep value of
                         0 -> return SzVoid
                         1 -> return SzBit
                         8 -> return SzByte
                         16 -> return SzTwoBytes
                         32 -> return SzFourBytes
                         64 -> return SzEightBytes
-                        _ -> fail $ "invalid list step size: "<>show (untypedListReaderStep value)
+                        _ -> fail $ "invalid list step size: "<>show (listReaderStep value)
 
-              ref' <- return $ setListRef ref' elemSize (untypedListReaderElementCount value)
+              ref' <- return $ setListRef ref' elemSize (listReaderElementCount value)
               poke ref ref'
-              copyArray (untypedListReaderData value) (castPtr ptr) (fromIntegral totalSize)
+              copyArray (listReaderData value) (castPtr ptr) (fromIntegral totalSize)
         return ptr
       else do
         -- List of structs
@@ -1142,25 +1142,25 @@ setListPointer segment ref value = do
         ref' <- return $ setInlineComposite ref' totalSize
         poke ref ref'
 
-        let dataSize = roundBitsUpToWords (fromIntegral $ untypedListReaderStructDataSize value)
-            pointerCount = untypedListReaderStructPtrCount value
+        let dataSize = roundBitsUpToWords (fromIntegral $ listReaderStructDataSize value)
+            pointerCount = listReaderStructPtrCount value
 
         let tag = castPtr ptr :: Ptr WirePointer
         tag' <- peek tag
-        tag' <- return $ setKindAndInlineCompositeListElementCount tag' Struct  (untypedListReaderElementCount value)
+        tag' <- return $ setKindAndInlineCompositeListElementCount tag' Struct  (listReaderElementCount value)
         tag' <- return $ setStructRef tag' (fromIntegral dataSize) (fromIntegral pointerCount)
         poke tag tag'
 
         let dst = ptr `advancePtr` pointerSizeInWords :: Ptr CPWord
-        let src = castPtr $ untypedListReaderData value :: Ptr WirePointer
-        loopFold_ 0 (untypedListReaderElementCount value) (src, dst) $ \(src, dst) _ -> do
-            copyArray (castPtr dst) src (fromIntegral (untypedListReaderStructDataSize value `div` fromIntegral bitsPerWord))
+        let src = castPtr $ listReaderData value :: Ptr WirePointer
+        loopFold_ 0 (listReaderElementCount value) (src, dst) $ \(src, dst) _ -> do
+            copyArray (castPtr dst) src (fromIntegral (listReaderStructDataSize value `div` fromIntegral bitsPerWord))
 
             let dst = dst `advancePtr` fromIntegral dataSize
                 src = src `advancePtr` fromIntegral dataSize
 
             (src, dst) <- loopFold 0 pointerCount (src, dst) $ \(src, dst) _ -> do
-                copyPointer segment (castPtr dst) (untypedListReaderSegment value) (castPtr src)
+                copyPointer segment (castPtr dst) (listReaderSegment value) (castPtr src)
 
                 let dst = dst `advancePtr` fromIntegral pointerSizeInWords
                     src = src `advancePtr` fromIntegral pointerSizeInWords
@@ -1215,7 +1215,7 @@ copyPointer dstSegment dst srcSegment src = do
                         let dataSize = structRefDataSize $ toStructRef tag'
                             pointerCount = structRefPtrCount $ toStructRef tag'
                         setListPointer dstSegment dst $
-                          UntypedListReader
+                          ListReader
                             srcSegment
                             (castPtr ptr)
                             elemCount
@@ -1230,7 +1230,7 @@ copyPointer dstSegment dst srcSegment src = do
                             wordCount = roundBitsUpToWords $ fromIntegral elemCount * fromIntegral step
 
                         setListPointer dstSegment dst $
-                          UntypedListReader
+                          ListReader
                             srcSegment
                             (castPtr ptr)
                             elemCount
@@ -1262,18 +1262,18 @@ readStructPointer segment ref defaultValue = withSegmentReader segment $ \_ ->
           -- XXX bounds check
           return $ StructReader segment (castPtr content) ptrs (fromIntegral dataWords * fromIntegral bitsPerWord) numPtrs
 
-getList :: PointerReader -> ElementSize -> Ptr CPWord -> IO UntypedListReader
+getList :: PointerReader -> ElementSize -> Ptr CPWord -> IO (ListReader a)
 getList reader expectedSize =
     readListPointer (pointerReaderSegment reader) expectedSize (pointerReaderData reader)
 
-readListPointer :: SegmentReader -> ElementSize -> Ptr WirePointer -> Ptr CPWord -> IO UntypedListReader
+readListPointer :: SegmentReader -> ElementSize -> Ptr WirePointer -> Ptr CPWord -> IO (ListReader a)
 readListPointer segment expectedSize ref defaultValue = withSegmentReader segment $ \_ -> do
     pred <- wirePtrRefIsNull ref
     if pred
       then do
           pred <- wirePtrRefIsNull $ castPtr defaultValue
           if pred
-            then return defaultUntypedListReader
+            then return defaultListReader
             else fail "Data.CapnProto.Layout.readListPointer: not implemented"
       else do
           (wirePtr, content, segment) <- followFars ref segment
@@ -1321,7 +1321,7 @@ readListPointer segment expectedSize ref defaultValue = withSegmentReader segmen
                                then return $ content `advancePtr` (fromIntegral $ structRefDataSize structRef)
                                else return content
 
-                  return $ UntypedListReader
+                  return $ ListReader
                     segment
                     content
                     size
@@ -1343,7 +1343,7 @@ readListPointer segment expectedSize ref defaultValue = withSegmentReader segmen
                   when (expectedDataBitsPerElement > dataSize || expectedPointersPerElement > pointerCount) $
                     fail "Message contains list with incompatible element type."
 
-                  return $ UntypedListReader
+                  return $ ListReader
                     segment
                     (castPtr content)
                     elemCount
@@ -1451,6 +1451,10 @@ getDataField = getDataFieldHack undefined
         bitOffset = (fromIntegral offset + 1) * (sizeOf dummy * bitsPerByte)
         dataBits = fromIntegral (structReaderDataSize reader)
 
+setDataField :: (Storable a, Num a) => StructBuilder -> ElementCount -> a -> IO ()
+setDataField builder offset =
+    pokeElemOff (castPtr $ structBuilderData builder) (fromIntegral offset)
+
 getBoolField :: StructReader -> ElementCount -> IO Bool
 getBoolField reader offset = withSegmentReader (structReaderSegment reader) $ \_ ->
     if bitOffset < structReaderDataSize reader
@@ -1461,6 +1465,15 @@ getBoolField reader offset = withSegmentReader (structReaderSegment reader) $ \_
   where
     bitOffset = fromIntegral offset
     (q,r) = bitOffset `quotRem` fromIntegral bitsPerByte
+
+setBoolField :: StructBuilder -> ElementCount -> Bool -> IO ()
+setBoolField builder offset value = withSegmentBuilder (structBuilderSegment builder) $ \_ -> do
+    byte <- peek ptr
+    poke ptr (byte .|. (1 `shiftL` fromIntegral r))
+  where
+    bitOffset = fromIntegral offset
+    (q,r) = bitOffset `quotRem` fromIntegral bitsPerByte
+    ptr = structBuilderData builder `advancePtr` fromIntegral q
 
 getPointerField :: StructReader -> WirePointerCount -> PointerReader
 getPointerField reader ptrIndex =
@@ -1545,39 +1558,47 @@ instance (ListElement a) => StructField (ListReader a) where
     getField' = getFieldHack undefined
       where
         getFieldHack :: (ListElement a) => a -> StructReader -> ElementCount -> DefaultTy (ListReader a) -> IO (ListReader a)
-        getFieldHack dummy reader index def = ListReader <$> getList ptrReader (elementSize dummy) (castPtr def)
+        getFieldHack dummy reader index def = getList ptrReader (elementSize dummy) (castPtr def)
           where
             ptrReader = getPointerField reader (fromIntegral index)
 
 --------------------------------------------------------------------------------
 -- Lists
 
-newtype ListReader a = ListReader UntypedListReader
-
-newtype ListBuilder a = ListBuilder UntypedListBuilder
-
-instance AsReader (ListBuilder a) where
-    type ReaderTy (ListBuilder a) = (ListReader a)
-    asReader (ListBuilder ulb) = ListReader (asReader ulb)
-
-getStructElement :: UntypedListReader -> ElementCount32 -> StructReader
+getStructElement :: ListReader a -> ElementCount32 -> StructReader
 getStructElement reader index =
-    StructReader (untypedListReaderSegment reader)
+    StructReader (listReaderSegment reader)
                  structData
                  structPointers
-                 (untypedListReaderStructDataSize reader)
-                 (untypedListReaderStructPtrCount reader)
+                 (listReaderStructDataSize reader)
+                 (listReaderStructPtrCount reader)
   where
-    indexBit = fromIntegral index * fromIntegral (untypedListReaderStep reader) :: BitCount64
-    structData = untypedListReaderData reader `plusPtr` (fromIntegral (indexBit `div` fromIntegral bitsPerByte)) :: Ptr Word8
-    structPointers = structData `plusPtr` (fromIntegral (untypedListReaderStructDataSize reader `div` fromIntegral bitsPerByte))
+    indexBit = fromIntegral index * fromIntegral (listReaderStep reader) :: BitCount64
+    structData = listReaderData reader `plusPtr` (fromIntegral (indexBit `div` fromIntegral bitsPerByte)) :: Ptr Word8
+    structPointers = structData `plusPtr` (fromIntegral (listReaderStructDataSize reader `div` fromIntegral bitsPerByte))
 
-getPointerElement :: UntypedListReader -> ElementCount32 -> PointerReader
+getPointerElement :: ListReader a -> ElementCount32 -> PointerReader
 getPointerElement reader index =
-    PointerReader (untypedListReaderSegment reader) ptr
+    PointerReader (listReaderSegment reader) ptr
   where
-    ptr = untypedListReaderData reader `plusPtr` offset
-    offset = fromIntegral index * (fromIntegral (untypedListReaderStep reader `div` fromIntegral bitsPerByte))
+    ptr = listReaderData reader `plusPtr` offset
+    offset = fromIntegral index * (fromIntegral (listReaderStep reader `div` fromIntegral bitsPerByte))
+
+setDataElement :: (Storable a) => ListBuilder a -> ElementCount32 -> a -> IO ()
+setDataElement builder index =
+    poke ptr
+  where
+    offset = index * fromIntegral (listBuilderStep builder) `div` fromIntegral bitsPerByte
+    ptr = listBuilderData builder `plusPtr` fromIntegral offset
+
+setBoolElement :: ListBuilder a -> ElementCount32 -> a -> IO ()
+setBoolElement builder index value = do
+    byte <- peek ptr
+    poke ptr $ byte .|. (1 `shiftL` fromIntegral bitNum)
+  where
+    bindex = fromIntegral index * fromIntegral (listBuilderStep builder) :: Word64
+    (offset, bitNum) = bindex `quotRem` fromIntegral bitsPerByte
+    ptr = listBuilderData builder `plusPtr` fromIntegral offset :: Ptr Word8
 
 -- TODO:
 -- * assert index < len
@@ -1585,26 +1606,29 @@ getPointerElement reader index =
 class ListElement a where
     elementSize :: a -> ElementSize
 
-    getUntypedElement :: UntypedListReader -> ElementCount -> IO a
-    default getUntypedElement :: (Storable a) => UntypedListReader -> ElementCount -> IO a
-    getUntypedElement reader index =
+    getReaderElement :: ListReader a -> ElementCount -> IO a
+    default getReaderElement :: (Storable a) => ListReader a -> ElementCount -> IO a
+    getReaderElement reader index =
         peek ptr
       where
-        offset = fromIntegral (index * fromIntegral (untypedListReaderStep reader) `div` fromIntegral bitsPerByte)
-        ptr = untypedListReaderData reader `plusPtr` offset
+        offset = index * fromIntegral (listReaderStep reader) `div` fromIntegral bitsPerByte
+        ptr = listReaderData reader `plusPtr` fromIntegral offset
 
-    getElement :: ListReader a -> ElementCount -> IO a
-    getElement (ListReader reader) = getUntypedElement reader
+    getBuilderElement :: ListBuilder a -> ElementCount -> IO a
+    getBuilderElement = undefined
+
+    setBuilderElement :: ListBuilder a -> ElementCount -> a -> IO ()
+    setBuilderElement = undefined
 
 instance ListElement Bool where
     elementSize _ = SzBit
-    getUntypedElement reader index = do
+    getReaderElement reader index = do
         val <- peek ptr
         return $ val .&. (1 `shiftL` fromIntegral bitNum) /= 0
       where
-        bindex = fromIntegral index * fromIntegral (untypedListReaderStep reader) :: Word64
+        bindex = fromIntegral index * fromIntegral (listReaderStep reader) :: Word64
         (offset, bitNum) = bindex `quotRem` fromIntegral bitsPerByte
-        ptr = untypedListReaderData reader `plusPtr` fromIntegral offset :: Ptr Word8
+        ptr = listReaderData reader `plusPtr` fromIntegral offset :: Ptr Word8
 
 instance ListElement Word8 where
     elementSize _ = SzByte
@@ -1638,26 +1662,26 @@ instance ListElement Double where
 
 instance ListElement StructReader where
     elementSize _ = SzInlineComposite
-    getUntypedElement reader index = return $ getStructElement reader (fromIntegral index)
+    getReaderElement reader index = return $ getStructElement reader (fromIntegral index)
 
 instance ListElement TextReader where
     elementSize _ = SzPointer
-    getUntypedElement reader index = getText ptrReader nullPtr 0
+    getReaderElement reader index = getText ptrReader nullPtr 0
       where
         ptrReader = getPointerElement reader (fromIntegral index)
 
 instance ListElement DataReader where
     elementSize _ = SzPointer
-    getUntypedElement reader index = getData ptrReader nullPtr 0
+    getReaderElement reader index = getData ptrReader nullPtr 0
       where
         ptrReader = getPointerElement reader (fromIntegral index)
 
 instance (ListElement a) => ListElement (ListReader a) where
     elementSize _ = SzPointer
-    getUntypedElement = getUntypedElementHack undefined
+    getReaderElement = getReaderElementHack undefined
       where
-        getUntypedElementHack :: (ListElement a) => a -> UntypedListReader -> ElementCount -> IO (ListReader a)
-        getUntypedElementHack dummy reader index = ListReader <$> getList ptrReader (elementSize dummy) nullPtr
+        getReaderElementHack :: (ListElement a) => a -> ListReader (ListReader a) -> ElementCount -> IO (ListReader a)
+        getReaderElementHack dummy reader index = getList ptrReader (elementSize dummy) nullPtr
           where
             ptrReader = getPointerElement reader (fromIntegral index)
 
@@ -1665,27 +1689,27 @@ instance (ListElement a) => ListElement (ListReader a) where
 -- List Utils (TODO: rewrite-rules (if needed))
 
 listLength :: ListReader a -> ElementCount
-listLength (ListReader reader) = fromIntegral $ untypedListReaderElementCount reader
+listLength reader = fromIntegral $ listReaderElementCount reader
 
 toList :: (ListElement a) => ListReader a -> IO [a]
-toList list = mapM (getElement list) [0..listLength list-1]
+toList list = mapM (getReaderElement list) [0..listLength list-1]
 
 eachElement_ :: (ListElement a) => ListReader a -> (a -> IO b) -> IO ()
 eachElement_ list fn =
     unless (listLength list == 0) $
-      mapM_ (fn <=< getElement list) [0..listLength list-1]
+      mapM_ (fn <=< getReaderElement list) [0..listLength list-1]
 
 eachElement :: (ListElement a) => ListReader a -> (a -> IO b) -> IO [b]
 eachElement list fn =
     if listLength list == 0
       then return []
-      else mapM (fn <=< getElement list) [0..listLength list-1]
+      else mapM (fn <=< getReaderElement list) [0..listLength list-1]
 
 mapElements :: (ListElement a) => (a -> IO b) -> ListReader a -> IO [b]
 mapElements fn list =
     if listLength list == 0
       then return []
-      else mapM (fn <=< getElement list) [0..listLength list-1]
+      else mapM (fn <=< getReaderElement list) [0..listLength list-1]
 
 foldrElements :: (ListElement a) => (a -> b -> IO b) -> b -> ListReader a -> IO b
 foldrElements f z0 list = go len z0
@@ -1695,7 +1719,7 @@ foldrElements f z0 list = go len z0
         if n == 0
           then return z
           else do
-              elem <- getElement list (n-1)
+              elem <- getReaderElement list (n-1)
               f elem z >>= go (n-1)
 
 foldlElements :: (ListElement a) => (b -> a -> IO b) -> b -> ListReader a -> IO b
@@ -1706,12 +1730,13 @@ foldlElements f z0 list = go 0 z0
         if n == len
           then return z
           else do
-              elem <- getElement list n
+              elem <- getReaderElement list n
               f z elem >>= go (n+1)
 
 --------------------------------------------------------------------------------
 -- Misc. Utils
 
+-- loop from `start` (inclusive) to `end` (exclusive)
 loop :: (Monad m, Num a, Eq a) => a -> a -> (a -> m b) -> m ()
 loop start end f = loopFold_ start end () (\_ x -> void $ f x )
 

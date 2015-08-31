@@ -204,6 +204,7 @@ prelude mod =
             , ""
             , "module "<>mod<>" where"
             , ""
+            , "import           Data.Coerce"
             , "import           Data.Int"
             , "import           Data.Word"
             , "import           Foreign.Ptr (nullPtr)"
@@ -242,8 +243,10 @@ renderEnum node =
               , ""
               , "instance L.ListElement "<>enumName<>" where"
               , "    elementSize _ = L.SzTwoBytes"
-              , "    getUntypedElement reader index ="
-              , "        fmap (toEnum . fromIntegral) (L.getUntypedElement reader index :: IO Word16)"
+              , "    getReaderElement reader index ="
+              , "        fmap (toEnum . fromIntegral) (L.getReaderElement (coerce reader) index :: IO Word16)"
+              , "    getBuilderElement = undefined"
+              , "    setBuilderElement = undefined"
               ]
   where
     enumName = mkEnumName node
@@ -298,8 +301,10 @@ mkData node =
               , ""
               , "instance L.ListElement "<>readerName<>" where"
               , "    elementSize _ = L.SzInlineComposite"
-              , "    getUntypedElement reader index ="
-              , "        fmap "<>readerName<>" $ L.getUntypedElement reader index"
+              , "    getReaderElement reader index ="
+              , "        fmap "<>readerName<>" $ L.getReaderElement (coerce reader) index"
+              , "    getBuilderElement = undefined"
+              , "    setBuilderElement = undefined"
               ]
   where
     readerName = mkStructName node<>"_Reader"

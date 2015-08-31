@@ -119,12 +119,12 @@ spec = do
             list1 <- L.getField struct 1
             list2 <- L.getField struct 2
 
-            elem0 <- L.getElement list0 0 :: IO Word32
-            elem1 <- L.getElement list1 0 :: IO Word32
-            elem2 <- L.getElement list1 1 :: IO Word32
-            elem3 <- L.getElement list2 0 :: IO Word32
-            elem4 <- L.getElement list2 1 :: IO Word32
-            elem5 <- L.getElement list2 2 :: IO Word32
+            elem0 <- L.getReaderElement list0 0 :: IO Word32
+            elem1 <- L.getReaderElement list1 0 :: IO Word32
+            elem2 <- L.getReaderElement list1 1 :: IO Word32
+            elem3 <- L.getReaderElement list2 0 :: IO Word32
+            elem4 <- L.getReaderElement list2 1 :: IO Word32
+            elem5 <- L.getReaderElement list2 2 :: IO Word32
 
             [elem0] `shouldBe` [0]
             [elem1, elem2] `shouldBe` [1, 2]
@@ -160,9 +160,9 @@ spec = do
             num1 <- L.getField struct0 0 :: IO Word32
 
             list0 <- L.getField struct 1
-            num3 <- L.getElement list0 0
-            num4 <- L.getElement list0 1
-            num5 <- L.getElement list0 2
+            num3 <- L.getReaderElement list0 0
+            num4 <- L.getReaderElement list0 1
+            num5 <- L.getReaderElement list0 2
 
             [num0, num1, num3, num4, num5] `shouldBe` [12345, 67890, 20304, 30405, 50607]
 
@@ -177,7 +177,7 @@ spec = do
                 list <- L.getField struct 0
 
                 let expected = [True, True, False, True]
-                bools <- traverse (L.getElement list) [0..3]
+                bools <- traverse (L.getReaderElement list) [0..3]
 
                 bools `shouldBe` expected
 
@@ -186,14 +186,14 @@ spec = do
                 list <- L.getField struct 0
 
                 let expected = [0x11223344, 0x55667788, 0x99AABBCC] :: [Word32]
-                nums <- traverse (L.getElement list) [0..2]
+                nums <- traverse (L.getReaderElement list) [0..2]
 
                 nums `shouldBe` expected
 
             it "uint64" $ do
                 struct <- readStruct "test-data/list_of_uint64"
                 list <- L.getField struct 0
-                nums <- traverse (L.getElement list) [0..2]
+                nums <- traverse (L.getReaderElement list) [0..2]
 
                 let expected = [0x1020304050607080, 0x1121314151617181, 0x1222324252627282] :: [Word64]
                 nums `shouldBe` expected
@@ -202,7 +202,7 @@ spec = do
                 struct <- readStruct "test-data/list_of_one_uint32"
 
                 list <- L.getField struct 0
-                structs <- traverse (L.getElement list) [0..2] :: IO [L.StructReader]
+                structs <- traverse (L.getReaderElement list) [0..2] :: IO [L.StructReader]
                 nums <- traverse (flip L.getField 0) structs
 
                 let expected = [0x11223344, 0x55667788, 0x99AABBCC] :: [Word32]
@@ -212,16 +212,16 @@ spec = do
                 struct <- readStruct "test-data/list_of_list_of_uint32"
 
                 lists <- L.getField struct 0
-                list0 <- L.getElement lists 0
-                list1 <- L.getElement lists 1
-                list2 <- L.getElement lists 2
+                list0 <- L.getReaderElement lists 0
+                list1 <- L.getReaderElement lists 1
+                list2 <- L.getReaderElement lists 2
 
-                elem0 <- L.getElement list0 0 :: IO Word32
-                elem1 <- L.getElement list1 0 :: IO Word32
-                elem2 <- L.getElement list1 1 :: IO Word32
-                elem3 <- L.getElement list2 0 :: IO Word32
-                elem4 <- L.getElement list2 1 :: IO Word32
-                elem5 <- L.getElement list2 2 :: IO Word32
+                elem0 <- L.getReaderElement list0 0 :: IO Word32
+                elem1 <- L.getReaderElement list1 0 :: IO Word32
+                elem2 <- L.getReaderElement list1 1 :: IO Word32
+                elem3 <- L.getReaderElement list2 0 :: IO Word32
+                elem4 <- L.getReaderElement list2 1 :: IO Word32
+                elem5 <- L.getReaderElement list2 2 :: IO Word32
 
                 [elem0] `shouldBe` [0]
                 [elem1, elem2] `shouldBe` [1, 2]
