@@ -1,4 +1,5 @@
-{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE LambdaCase   #-}
+{-# LANGUAGE TypeFamilies #-}
 
 module Data.CapnProto.Arena where
 
@@ -18,6 +19,12 @@ import           System.IO.Unsafe          (unsafeDupablePerformIO,
 import           Data.CapnProto.Units
 
 --------------------------------------------------------------------------------
+
+class AsReader builder where
+    type ReaderTy builder :: *
+    asReader :: builder -> ReaderTy builder
+
+--------------------------------------------------------------------------------
 -- Segments
 
 type SegmentId = Word32
@@ -29,11 +36,21 @@ data SegmentReader = SegmentReader
   , segmentReaderSize       :: WordCount32
   }
 
+instance Nullable (SegmentReader) where
+    isNull segment = unsafeSegmentReaderPtr segment == nullPtr
+
 data SegmentBuilder = SegmentBuilder
   { segmentBuilderSegmentReader :: SegmentReader
   , segmentBuilderId            :: SegmentId
   , segmentBuilderPos           :: IORef (Ptr CPWord)
   }
+
+instance Nullable (SegmentBuilder) where
+    isNull = isNull . segmentBuilderSegmentReader
+
+instance AsReader SegmentBuilder where
+    type ReaderTy SegmentBuilder = SegmentReader
+    asReader = segmentBuilderSegmentReader
 
 segmentBuilderGetArena :: SegmentBuilder -> BuilderArena
 segmentBuilderGetArena segment =
@@ -49,12 +66,6 @@ unsafeSegmentBuilderPtr = unsafeSegmentReaderPtr . segmentBuilderSegmentReader
 
 segmentBuilderSize :: SegmentBuilder -> WordCount32
 segmentBuilderSize = segmentReaderSize . segmentBuilderSegmentReader
-
-instance Nullable (SegmentReader) where
-    isNull segment = unsafeSegmentReaderPtr segment == nullPtr
-
-instance Nullable (SegmentBuilder) where
-    isNull = isNull . segmentBuilderSegmentReader
 
 {-# NOINLINE nullSegmentReader #-}
 nullSegmentReader :: SegmentReader

@@ -55,11 +55,6 @@ class Union a where
     type UnionTy a :: *
     which :: a -> IO (UnionTy a)
 
--- TODO - use
-class AsReader builder where
-    type ReaderTy builder :: *
-    asReader :: builder -> ReaderTy builder
-
 data StructSize = StructSize
   { structSizeData     :: WordCount16
   , structSizePointers :: WirePointerCount16
@@ -94,6 +89,10 @@ newtype TextBuilder = TextBuilder
   { textBuilderData :: BS.ByteString
   }
 
+instance AsReader TextBuilder where
+    type ReaderTy TextBuilder = TextReader
+    asReader (TextBuilder bs) = TextReader (Just bs)
+
 newtype DataReader = DataReader
   { dataReaderData :: Maybe BS.ByteString
   }
@@ -101,6 +100,10 @@ newtype DataReader = DataReader
 newtype DataBuilder = DataBuilder
   { dataBuilderData :: BS.ByteString
   }
+
+instance AsReader DataBuilder where
+    type ReaderTy DataBuilder = DataReader
+    asReader (DataBuilder bs) = DataReader (Just bs)
 
 data StructReader = StructReader
   { structReaderSegment  :: SegmentReader
@@ -117,6 +120,16 @@ data StructBuilder = StructBuilder
   , structBuilderDataSize :: BitCount32
   , structBuilderPtrCount :: WirePointerCount16
   }
+
+instance AsReader StructBuilder where
+    type ReaderTy StructBuilder = StructReader
+    asReader builder =
+        StructReader
+            (asReader $ structBuilderSegment builder)
+            (structBuilderData builder)
+            (structBuilderPointers builder)
+            (structBuilderDataSize builder)
+            (structBuilderPtrCount builder)
 
 data UntypedListReader = UntypedListReader
   { untypedListReaderSegment        :: SegmentReader
@@ -135,6 +148,17 @@ data UntypedListBuilder = UntypedListBuilder
   , untypedListBuilderStructDataSize :: BitCount32
   , untypedListBuilderStructPtrCount :: WirePointerCount16
   }
+
+instance AsReader UntypedListBuilder where
+    type ReaderTy UntypedListBuilder = UntypedListReader
+    asReader builder =
+        UntypedListReader
+            (asReader $ untypedListBuilderSegment builder)
+            (untypedListBuilderData builder)
+            (untypedListBuilderElementCount builder)
+            (untypedListBuilderStep builder)
+            (untypedListBuilderStructDataSize builder)
+            (untypedListBuilderStructPtrCount builder)
 
 data StructRef = StructRef
     { structRefDataSize :: WordCount16
@@ -1529,6 +1553,12 @@ instance (ListElement a) => StructField (ListReader a) where
 -- Lists
 
 newtype ListReader a = ListReader UntypedListReader
+
+newtype ListBuilder a = ListBuilder UntypedListBuilder
+
+instance AsReader (ListBuilder a) where
+    type ReaderTy (ListBuilder a) = (ListReader a)
+    asReader (ListBuilder ulb) = ListReader (asReader ulb)
 
 getStructElement :: UntypedListReader -> ElementCount32 -> StructReader
 getStructElement reader index =
