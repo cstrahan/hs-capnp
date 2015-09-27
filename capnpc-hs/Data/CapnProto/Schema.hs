@@ -218,6 +218,23 @@ data Type =
     }
   | TyAnyPointer AnyPointer
 
+typeIsPointer :: Type -> Bool
+typeIsPointer ty =
+    case ty of
+        TyVoid -> False
+        TyBool -> False
+        TyInt8 -> False
+        TyInt16 -> False
+        TyInt32 -> False
+        TyInt64 -> False
+        TyUInt8 -> False
+        TyUInt16 -> False
+        TyUInt32 -> False
+        TyUInt64 -> False
+        TyFloat32 -> False
+        TyFloat64 -> False
+        _ -> True
+
 data AnyPointerKind =
     Unconstrained
   | Parameter

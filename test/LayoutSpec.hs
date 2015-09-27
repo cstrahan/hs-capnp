@@ -61,63 +61,63 @@ spec = do
         describe "with one bool field" $ do
             it "set to false" $ do
                 struct <- readStruct "test-data/one_bool_false"
-                value <- L.getField struct 0
+                value <- L.getReaderBoolField struct 0
                 value `shouldBe` False
 
-                defaulted <- L.getField struct 1
+                defaulted <- L.getReaderBoolField struct 1
                 defaulted `shouldBe` False
 
             it "set to true" $ do
                 struct <- readStruct "test-data/one_bool_true"
-                value <- L.getField struct 0
+                value <- L.getReaderBoolField struct 0
                 value `shouldBe` True
 
-                defaulted <- L.getField struct 1
+                defaulted <- L.getReaderBoolField struct 1
                 defaulted `shouldBe` False
 
         it "with 64 bool fields" $ do
             struct <- readStruct "test-data/many_bool"
             let expected = replicate 64 True
-            bytes <- traverse (\n -> L.getField struct n) [0..63]
+            bytes <- traverse (\n -> L.getReaderBoolField struct n) [0..63]
             bytes `shouldBe` expected
 
-            defaulted <- L.getField struct 64
+            defaulted <- L.getReaderBoolField struct 64
             defaulted `shouldBe` False
 
         it "with 8 bytes" $ do
             struct <- readStruct "test-data/many_uint8"
             let expected = [1..8] :: [Word8]
-            bytes <- traverse (L.getField struct) [0..7]
+            bytes <- traverse (L.getReaderNumericField struct) [0..7]
             bytes `shouldBe` expected
 
-            defaulted <- L.getField struct 8
+            defaulted <- L.getReaderNumericField struct 8
             defaulted `shouldBe` (0 :: Word8)
 
         it "with 3 structs" $ do
             struct <- readStruct "test-data/three_structs"
 
-            struct0 <- L.getField struct 0
-            num0 <- L.getField struct0 0
+            struct0 <- L.getReaderStruct (L.getReaderPointerField struct 0) nullPtr
+            num0 <- L.getReaderNumericField struct0 0
 
-            struct1 <- L.getField struct 1
-            num1 <- L.getField struct1 0
+            struct1 <- L.getReaderStruct (L.getReaderPointerField struct 1) nullPtr
+            num1 <- L.getReaderNumericField struct1 0
 
-            struct2 <- L.getField struct 2
-            num2 <- L.getField struct2 0
+            struct2 <- L.getReaderStruct (L.getReaderPointerField struct 2) nullPtr
+            num2 <- L.getReaderNumericField struct2 0
 
             let expected = [0x11223344, 0x55667788, 0x99AABBCC] :: [Word32]
             [num0, num1, num2] `shouldBe` expected
 
-            structDefault <- L.getField struct 3
-            numDefault <- L.getField structDefault 0
+            structDefault <- L.getReaderStruct (L.getReaderPointerField struct 3) nullPtr
+            numDefault <- L.getReaderNumericField structDefault 0
             numDefault `shouldBe` (0 :: Word32)
 
         it "with 3 lists" $ do
             struct <- readStruct "test-data/three_lists"
 
-            list0 <- L.getField struct 0
-            list1 <- L.getField struct 1
-            list2 <- L.getField struct 2
+            list0 <- L.getReaderList (L.getReaderPointerField struct 0) nullPtr
+            list1 <- L.getReaderList (L.getReaderPointerField struct 1) nullPtr
+            list2 <- L.getReaderList (L.getReaderPointerField struct 2) nullPtr
 
             elem0 <- L.getReaderElement list0 0 :: IO Word32
             elem1 <- L.getReaderElement list1 0 :: IO Word32
@@ -132,34 +132,34 @@ spec = do
 
         it "far pointer" $ do
             struct <- readStruct "test-data/far_one_uint32"
-            num0 <- L.getField struct 0
+            num0 <- L.getReaderNumericField struct 0
             num0 `shouldBe` (0x11223344 :: Word32)
 
         it "double far pointer" $ do
             struct <- readStruct "test-data/double_far_one_uint32"
-            num0 <- L.getField struct 0
+            num0 <- L.getReaderNumericField struct 0
             num0 `shouldBe` (0x11223344 :: Word32)
 
         it "text" $ do
             struct <- readStruct "test-data/one_text"
-            text <- L.getField struct 0 :: IO L.TextReader
+            text <- L.getReaderTextField struct 0 ""
 
             L.textReaderData text `shouldBe` "This is some text."
 
         it "data" $ do
             struct <- readStruct "test-data/one_data"
-            text <- L.getField struct 0 :: IO L.DataReader
+            text <- L.getReaderDataField struct 0 ""
 
             L.dataReaderData text `shouldBe` "This is some data."
 
         it "mixed" $ do
             struct <- readStruct "test-data/mixed"
-            num0 <- L.getField struct 0 :: IO Word32
+            num0 <- L.getReaderNumericField struct 0 :: IO Word32
 
-            struct0 <- L.getField struct 0 :: IO L.StructReader
-            num1 <- L.getField struct0 0 :: IO Word32
+            struct0 <- L.getReaderStruct (L.getReaderPointerField struct 0) nullPtr
+            num1 <- L.getReaderNumericField struct0 0 :: IO Word32
 
-            list0 <- L.getField struct 1
+            list0 <- L.getReaderList (L.getReaderPointerField struct 1) nullPtr
             num3 <- L.getReaderElement list0 0
             num4 <- L.getReaderElement list0 1
             num5 <- L.getReaderElement list0 2
@@ -168,13 +168,13 @@ spec = do
 
         it "unininitialized list of uint32" $ do
             struct <- readStruct "test-data/uninitialized_list_of_uint32"
-            list <- L.getField struct 0 :: IO (L.ListReader Word32)
+            list <- L.getReaderList (L.getReaderPointerField struct 0) nullPtr :: IO (L.ListReader Word32)
             L.listLength list `shouldBe` 0
 
         describe "list of" $ do
             it "bool" $ do
                 struct <- readStruct "test-data/list_of_bool"
-                list <- L.getField struct 0
+                list <- L.getReaderList (L.getReaderPointerField struct 0) nullPtr
 
                 let expected = [True, True, False, True]
                 bools <- traverse (L.getReaderElement list) [0..3]
@@ -183,7 +183,7 @@ spec = do
 
             it "uint32" $ do
                 struct <- readStruct "test-data/list_of_uint32"
-                list <- L.getField struct 0
+                list <- L.getReaderList (L.getReaderPointerField struct 0) nullPtr
 
                 let expected = [0x11223344, 0x55667788, 0x99AABBCC] :: [Word32]
                 nums <- traverse (L.getReaderElement list) [0..2]
@@ -192,7 +192,7 @@ spec = do
 
             it "uint64" $ do
                 struct <- readStruct "test-data/list_of_uint64"
-                list <- L.getField struct 0
+                list <- L.getReaderList (L.getReaderPointerField struct 0) nullPtr
                 nums <- traverse (L.getReaderElement list) [0..2]
 
                 let expected = [0x1020304050607080, 0x1121314151617181, 0x1222324252627282] :: [Word64]
@@ -201,9 +201,9 @@ spec = do
             it "struct of uint32" $ do
                 struct <- readStruct "test-data/list_of_one_uint32"
 
-                list <- L.getField struct 0
+                list <- L.getReaderList (L.getReaderPointerField struct 0) nullPtr
                 structs <- traverse (L.getReaderElement list) [0..2] :: IO [L.StructReader]
-                nums <- traverse (flip L.getField 0) structs
+                nums <- traverse (flip L.getReaderNumericField 0) structs
 
                 let expected = [0x11223344, 0x55667788, 0x99AABBCC] :: [Word32]
                 nums `shouldBe` expected
@@ -211,7 +211,7 @@ spec = do
             it "list of uint32" $ do
                 struct <- readStruct "test-data/list_of_list_of_uint32"
 
-                lists <- L.getField struct 0
+                lists <- L.getReaderList (L.getReaderPointerField struct 0) nullPtr
                 list0 <- L.getReaderElement lists 0
                 list1 <- L.getReaderElement lists 1
                 list2 <- L.getReaderElement lists 2

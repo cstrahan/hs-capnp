@@ -6,6 +6,7 @@
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE TypeFamilies          #-}
+{-# LANGUAGE MagicHash             #-}
 
 module Data.CapnProto.Layout where
 
@@ -18,6 +19,7 @@ import           Data.Bits
 import qualified Data.ByteString          as BS
 import qualified Data.ByteString.Char8    as BSC
 import qualified Data.ByteString.Internal as BS (fromForeignPtr, memset)
+import qualified Data.ByteString.Unsafe   as BS
 import           Data.Int
 import           Data.IORef
 import           Data.Monoid
@@ -28,6 +30,7 @@ import           Foreign.Marshal.Array    hiding (newArray)
 import           Foreign.Ptr
 import           Foreign.Storable
 import           System.IO
+import           System.IO.Unsafe         (unsafePerformIO)
 import           Text.Printf
 
 import           Data.CapnProto.Arena
@@ -203,6 +206,7 @@ instance Storable WirePointer where
         let p0 = castPtr ptr :: Ptr Word32
             p1 = castPtr $ p0 `advancePtr` 1
         in WirePointer <$> peek p0 <*> peek p1
+
 
 --------------------------------------------------------------------------------
 -- Wire Helpers
@@ -994,7 +998,6 @@ initTextPointer ref segment size = do
 
 setTextPointer :: Ptr WirePointer -> SegmentBuilder -> BS.ByteString -> IO TextBuilder
 setTextPointer ref segment value =
-    -- TODO: should make sure value ends in '\NULL'
     BS.useAsCStringLen value $ \(srcPtr, len) -> do
         allocation@(TextBuilder bs) <- initTextPointer ref segment (fromIntegral len)
         BS.useAsCStringLen bs $ \(dstPtr, _) -> do
@@ -1007,7 +1010,7 @@ getWritableTextPointer ref segment defaultValue = do
     if isNull ref'
       then
         if BS.length defaultValue == 0
-          then return $ TextBuilder "\NULL" -- XXX not quite right - allocation needs to end in '\NULL'
+          then return $ TextBuilder defaultValue
           else fail "unimplemented"
       else do
         refTarget <- wirePointerTarget ref
@@ -1046,7 +1049,6 @@ initDataPointer ref segment size = do
 
 setDataPointer :: Ptr WirePointer -> SegmentBuilder -> BS.ByteString -> IO DataBuilder
 setDataPointer ref segment value =
-    -- TODO: should make sure value ends in '\NULL'
     BS.useAsCStringLen value $ \(srcPtr, len) -> do
         allocation@(DataBuilder bs) <- initDataPointer ref segment (fromIntegral len)
         BS.useAsCStringLen bs $ \(dstPtr, _) -> do
@@ -1348,18 +1350,11 @@ readListPointer segment expectedSize ref defaultValue = withSegmentReader segmen
                     dataSize
                     (fromIntegral pointerCount)
 
-readTextPointer :: SegmentReader -> Ptr WirePointer -> Ptr CPWord -> ByteCount32 -> IO TextReader
-readTextPointer segment ref defaultValue defaultSize = withSegmentReader segment $ \sptr -> do
+readTextPointer :: SegmentReader -> Ptr WirePointer -> BS.ByteString -> IO TextReader
+readTextPointer segment ref defaultValue = withSegmentReader segment $ \sptr -> do
     pred <- wirePtrRefIsNull ref
     if pred
-      then do
-          pred <- wirePtrRefIsNull (castPtr defaultValue)
-          if pred
-            then return $ TextReader ""
-            else do
-                p <- newForeignPtr_ defaultValue
-                let bs = BS.fromForeignPtr (castForeignPtr p) 0 (fromIntegral defaultSize)
-                return $ TextReader bs
+      then return $ TextReader defaultValue
       else do
           (wirePtr, content, segment) <- followFars ref segment
           let listRef = toListRef wirePtr
@@ -1384,18 +1379,11 @@ readTextPointer segment ref defaultValue defaultSize = withSegmentReader segment
 
           return $ TextReader bs
 
-readDataPointer :: SegmentReader -> Ptr WirePointer -> Ptr CPWord -> ByteCount32 -> IO DataReader
-readDataPointer segment ref defaultValue defaultSize = withSegmentReader segment $ \_ -> do
+readDataPointer :: SegmentReader -> Ptr WirePointer -> BS.ByteString -> IO DataReader
+readDataPointer segment ref defaultValue = withSegmentReader segment $ \_ -> do
     pred <- wirePtrRefIsNull ref
     if pred
-      then do
-          pred <- wirePtrRefIsNull (castPtr defaultValue)
-          if pred
-            then return $ DataReader ""
-            else do
-                p <- newForeignPtr_ defaultValue
-                let bs = BS.fromForeignPtr (castForeignPtr p) 0 (fromIntegral defaultSize)
-                return $ DataReader bs
+      then return $ DataReader defaultValue
       else do
           (wirePtr, content, segment) <- followFars ref segment
           let listRef = toListRef wirePtr
@@ -1409,6 +1397,7 @@ readDataPointer segment ref defaultValue defaultSize = withSegmentReader segment
 
           let bs = BS.fromForeignPtr (segmentReaderForeignPtr segment) (content `minusPtr` unsafeSegmentReaderPtr segment) (fromIntegral size)
           return $ DataReader bs
+
 
 --------------------------------------------------------------------------------
 -- Structs
@@ -1444,7 +1433,7 @@ getReaderBoolField reader offset = withSegmentReader (structReaderSegment reader
 
 getReaderBoolFieldMasked :: StructReader -> ElementCount -> Bool -> IO Bool
 getReaderBoolFieldMasked struct index def =
-    getReaderBoolField struct index >>= \val -> return $ (val || def) && (not (val && def))
+    getReaderBoolField struct index >>= \val -> return $ val `xorBool` def
 
 getReaderNumericField :: (Numeric a) => StructReader -> ElementCount -> IO a
 getReaderNumericField = go undefined
@@ -1468,26 +1457,6 @@ getReaderPointerField reader ptrIndex =
                (structReaderSegment reader)
                (structReaderPointers reader `advancePtr` fromIntegral ptrIndex)
         else defaultPointerReader
-
-getReaderTextField :: StructReader -> ElementCount -> Ptr WirePointer -> IO TextReader
-getReaderTextField reader index def = getReaderText ptrReader (castPtr def) 0
-  where
-    ptrReader = getReaderPointerField reader (fromIntegral index)
-
-getReaderDataField :: StructReader -> ElementCount -> Ptr WirePointer -> IO DataReader
-getReaderDataField reader index def = getReaderData ptrReader (castPtr def) 0
-  where
-    ptrReader = getReaderPointerField reader (fromIntegral index)
-
-getReaderStructField :: StructReader -> ElementCount -> Ptr WirePointer -> IO StructReader
-getReaderStructField reader index def = getReaderStruct ptrReader (castPtr def)
-  where
-    ptrReader = getReaderPointerField reader (fromIntegral index)
-
-getReaderListField :: (ListElement a) => StructReader -> ElementCount -> Ptr WirePointer -> IO (ListReader a)
-getReaderListField reader index def = getReaderList ptrReader (castPtr def)
-  where
-    ptrReader = getReaderPointerField reader (fromIntegral index)
 
 ------------------
 -- Builder Getters
@@ -1522,29 +1491,6 @@ getBuilderPointerField reader ptrIndex =
     PointerBuilder
            (structBuilderSegment reader)
            (structBuilderPointers reader `advancePtr` fromIntegral ptrIndex)
---
---getBuilderTextField :: StructReader -> ElementCount -> Ptr WirePointer -> IO TextReader
---getBuilderTextField reader index def = getReaderText ptrReader (castPtr def) 0
---  where
---    ptrReader = getReaderPointerField reader (fromIntegral index)
---
---getBuilderDataField :: StructReader -> ElementCount -> Ptr WirePointer -> IO DataReader
---getBuilderDataField reader index def = getReaderData ptrReader (castPtr def) 0
---  where
---    ptrReader = getReaderPointerField reader (fromIntegral index)
---
---getBuilderStructField :: StructReader -> ElementCount -> Ptr WirePointer -> IO StructReader
---getBuilderStructField reader index def = getReaderStruct ptrReader (castPtr def)
---  where
---    ptrReader = getReaderPointerField reader (fromIntegral index)
---
---getBuilderListField :: (ListElement a) => StructReader -> ElementCount -> Ptr WirePointer -> IO (ListReader a)
---getBuilderListField = go undefined
---  where
---    go :: (ListElement a) => a -> StructReader -> ElementCount -> Ptr WirePointer -> IO (ListReader a)
---    go dummy reader index def = getReaderList ptrReader (elementSize dummy) (castPtr def)
---      where
---        ptrReader = getReaderPointerField reader (fromIntegral index)
 
 ----------
 -- Setters
@@ -1567,125 +1513,6 @@ setNumericField builder offset = pokeElemOff (castPtr $ structBuilderData builde
 setNumericFieldMasked :: (Numeric a) => StructBuilder -> ElementCount -> a -> a -> IO ()
 setNumericFieldMasked struct index def val = setNumericField struct index (val `mask` def)
 
-{-
-setTextField :: StructReader -> ElementCount -> Ptr WirePointer -> IO TextReader
-setTextField reader index def = getReaderText ptrReader (castPtr def) 0
-  where
-    ptrReader = getPointerField reader (fromIntegral index)
-
-setDataField :: StructReader -> ElementCount -> Ptr WirePointer -> IO DataReader
-setDataField reader index def = getReaderData ptrReader (castPtr def) 0
-  where
-    ptrReader = getPointerField reader (fromIntegral index)
-
-setStructField :: StructReader -> ElementCount -> Ptr WirePointer -> IO StructReader
-setStructField reader index def = getReaderStruct ptrReader (castPtr def)
-  where
-    ptrReader = getPointerField reader (fromIntegral index)
-
-setListField :: (ListElement a) => StructReader -> ElementCount -> Ptr WirePointer -> IO (ListReader a)
-setListField = go undefined
-  where
-    go :: (ListElement a) => a -> StructReader -> ElementCount -> Ptr WirePointer -> IO (ListReader a)
-    go dummy reader index def = getReaderList ptrReader (elementSize dummy) (castPtr def)
-      where
-        ptrReader = getPointerField reader (fromIntegral index)
--}
-
-class (Num a, Storable a) => Numeric a where
-    default mask :: Bits a => a -> a -> a
-    mask :: a -> a -> a
-    mask = xor
-
-instance Numeric Word8
-instance Numeric Word16
-instance Numeric Word32
-instance Numeric Word64
-instance Numeric Int8
-instance Numeric Int16
-instance Numeric Int32
-instance Numeric Int64
-instance Numeric Float where
-    mask = xorFloat
-instance Numeric Double where
-    mask = xorDouble
-
-class StructField a where
-    type DefaultTy a :: *
-    type DefaultTy a = a
-
-    getField :: StructReader -> ElementCount -> IO a
-    getField' :: StructReader -> ElementCount -> DefaultTy a -> IO a
-
-    default getField :: (Numeric a) => StructReader -> ElementCount -> IO a
-    getField = getReaderNumericField
-
-    default getField' :: (Storable a, Bits a, DefaultTy a ~ a) => StructReader -> ElementCount -> DefaultTy a -> IO a
-    getField' struct index def = fmap (`xor` def) (getField struct index)
-
-instance StructField () where
-    getField _ _ = return ()
-    getField' _ _ _ = return ()
-
-instance StructField Bool where
-    type DefaultTy Bool = Bool
-    getField = getReaderBoolField
-    getField' struct index def = do
-        val <- getField struct index
-        return $ (val || def) && (not (val && def))
-
-instance StructField Word8
-instance StructField Word16
-instance StructField Word32
-instance StructField Word64
-instance StructField Int8
-instance StructField Int16
-instance StructField Int32
-instance StructField Int64
-
-instance StructField Float where
-    type DefaultTy Float = Word32
-    getField' struct index def = do
-        val <- getField struct index
-        return $ wordToFloat (floatToWord val `xor` def)
-
-instance StructField Double where
-    type DefaultTy Double = Word64
-    getField' struct index def = do
-        val <- getField struct index
-        return $ wordToDouble (doubleToWord val `xor` def)
-
-instance StructField TextReader where
-    type DefaultTy TextReader = Ptr WirePointer
-    getField reader index = getField' reader index nullPtr
-    getField' reader index def = getReaderText ptrReader (castPtr def) 0
-      where
-        ptrReader = getReaderPointerField reader (fromIntegral index)
-
-instance StructField DataReader where
-    type DefaultTy DataReader = Ptr WirePointer
-    getField reader index = getField' reader index nullPtr
-    getField' reader index def = getReaderData ptrReader (castPtr def) 0
-      where
-        ptrReader = getReaderPointerField reader (fromIntegral index)
-
-instance StructField StructReader where
-    type DefaultTy StructReader = Ptr WirePointer
-    getField reader index = getField' reader index nullPtr
-    getField' reader index def = getReaderStruct ptrReader (castPtr def)
-      where
-        ptrReader = getReaderPointerField reader (fromIntegral index)
-
-instance (ListElement a) => StructField (ListReader a) where
-    type DefaultTy (ListReader a) = Ptr WirePointer
-    getField reader index = getField' reader index nullPtr
-    getField' = go undefined
-      where
-        go :: (ListElement a) => a -> StructReader -> ElementCount -> DefaultTy (ListReader a) -> IO (ListReader a)
-        go dummy reader index def = readListPointer (pointerReaderSegment ptrReader) (elementSize dummy) (pointerReaderData ptrReader) (castPtr def)
-          where
-            ptrReader = getReaderPointerField reader (fromIntegral index)
-
 
 --------------------------------------------------------------------------------
 -- Pointers
@@ -1702,11 +1529,11 @@ getReaderList = go undefined
     go :: ListElement a => a -> PointerReader -> Ptr CPWord -> IO (ListReader a)
     go dummy reader def = readListPointer (pointerReaderSegment reader) (elementSize dummy) (pointerReaderData reader) (castPtr def)
 
-getReaderText :: PointerReader -> Ptr CPWord -> ByteCount32 -> IO TextReader
+getReaderText :: PointerReader -> BS.ByteString -> IO TextReader
 getReaderText reader =
     readTextPointer (pointerReaderSegment reader) (pointerReaderData reader)
 
-getReaderData :: PointerReader -> Ptr CPWord -> ByteCount32 -> IO DataReader
+getReaderData :: PointerReader -> BS.ByteString -> IO DataReader
 getReaderData reader =
     readDataPointer (pointerReaderSegment reader) (pointerReaderData reader)
 
@@ -1728,6 +1555,7 @@ getBuilderText builder =
 getBuilderData :: PointerBuilder -> BS.ByteString -> IO DataBuilder
 getBuilderData builder =
     getWritableDataPointer (pointerBuilderData builder) (pointerBuilderSegment builder)
+
 
 --------------------------------------------------------------------------------
 -- Lists
@@ -1842,7 +1670,7 @@ instance ListElement StructReader where
 
 instance ListElement TextReader where
     elementSize _ = SzPointer
-    getReaderElement reader index = getReaderText ptrReader nullPtr 0
+    getReaderElement reader index = getReaderText ptrReader "\NULL"
       where
         ptrReader = getReaderPointerElement reader (fromIntegral index)
 
@@ -1853,7 +1681,7 @@ instance ListElement TextReader where
 
 instance ListElement DataReader where
     elementSize _ = SzPointer
-    getReaderElement reader index = getReaderData ptrReader nullPtr 0
+    getReaderElement reader index = getReaderData ptrReader ""
       where
         ptrReader = getReaderPointerElement reader (fromIntegral index)
 
@@ -1872,6 +1700,7 @@ instance (ListElement a) => ListElement (ListReader a) where
         void $ setListPointer (pointerBuilderSegment ptrBuilder) (pointerBuilderData ptrBuilder) value
       where
         ptrBuilder = getBuilderPointerElement builder (fromIntegral index)
+
 
 --------------------------------------------------------------------------------
 -- List Utils (TODO: rewrite-rules (if needed))
@@ -1920,6 +1749,29 @@ foldlElements f z0 list = go 0 z0
           else do
               elem <- getReaderElement list n
               f z elem >>= go (n+1)
+
+
+--------------------------------------------------------------------------------
+-- Numeric
+
+class (Num a, Storable a) => Numeric a where
+    default mask :: Bits a => a -> a -> a
+    mask :: a -> a -> a
+    mask = xor
+
+instance Numeric Word8
+instance Numeric Word16
+instance Numeric Word32
+instance Numeric Word64
+instance Numeric Int8
+instance Numeric Int16
+instance Numeric Int32
+instance Numeric Int64
+instance Numeric Float where
+    mask = xorFloat
+instance Numeric Double where
+    mask = xorDouble
+
 
 --------------------------------------------------------------------------------
 -- Misc. Utils

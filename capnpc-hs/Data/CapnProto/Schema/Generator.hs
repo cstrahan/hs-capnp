@@ -114,24 +114,39 @@ renderFieldGetter node (Field name _ _ _ kind _ ) =
         GroupField typeNode ->
             "return . "<>mkStructName typeNode <> "_Reader $ reader"
         SlotField offset ty def explicitDefault ->
-            case ty of
-                TyVoid ->
-                    "return ()"
-                TyStruct n _ ->
-                    "fmap "<>mkStructName n <> "_Reader $ "<>getter
-                TyEnum n _ ->
-                    "fmap (toEnum . fromIntegral) ("<>getter<>" :: IO Word16)"
-                _ ->
-                    getter
+            if explicitDefault
+              then case ty of
+                       TyVoid -> "return ()"
+                       TyText{} -> "L.getReaderText (L.getReaderPointerField reader "<>show offset<>") emptyString"
+                       TyData{} -> "L.getReaderData (L.getReaderPointerField reader "<>show offset<>") \"\""
+                       TyList{} -> "L.getReaderList (L.getReaderPointerField reader "<>show offset<>") nullPtr"
+                       TyStruct n _ -> "fmap "<>mkStructName n <> "_Reader $ "<>"L.getReaderStruct (L.getReaderPointerField reader "<>show offset<>") nullPtr"
+                       TyInterface{} -> "error \"not implemented\""
+                       TyAnyPointer{} -> "return $ L.getReaderPointerField reader"<>show offset
+                       TyBool{} -> "L.getReaderBoolFieldMasked reader "<>show offset<>" "<>defaultValueTerm
+                       TyEnum{} -> "fmap (toEnum . fromIntegral) ("<>"L.getReaderNumericFieldMasked reader "<>show offset<>" "<>show defaultValueTerm<>" :: IO Word16)"
+                       _ -> "L.getReaderNumericFieldMasked reader "<>show offset<>" "<>defaultValueTerm
+              else case ty of
+                       TyVoid -> "return ()"
+                       TyText{} -> "L.getReaderText (L.getReaderPointerField reader "<>show offset<>") emptyString"
+                       TyData{} -> "L.getReaderData (L.getReaderPointerField reader "<>show offset<>") \"\""
+                       TyList{} -> "L.getReaderList (L.getReaderPointerField reader "<>show offset<>") nullPtr"
+                       TyStruct n _ -> "fmap "<>mkStructName n <> "_Reader $ "<>"L.getReaderStruct (L.getReaderPointerField reader "<>show offset<>") nullPtr"
+                       TyInterface{} -> "error \"not implemented\""
+                       TyAnyPointer{} -> "return $ L.getReaderPointerField reader "<>show offset
+                       TyBool{} -> "L.getReaderBoolField reader "<>show offset
+                       TyEnum{} -> "fmap (toEnum . fromIntegral) ("<>"L.getReaderNumericField reader "<>show offset<>" :: IO Word16)"
+                       _ -> "L.getReaderNumericField reader "<>show offset
           where
-            getter =
-                if explicitDefault
-                  then "L.getField' reader "<>show offset<>" "<>defaultValueTerm
-                  else "L.getField reader "<>show offset
-
             defaultValueTerm =
                 case def of
                     ValVoid -> "()"
+                    ValText val -> defName
+                    ValData val -> defName
+                    ValList val -> defName
+                    ValStruct val -> defName
+                    ValAnyPointer val -> defName
+                    ValInterface -> "()"
                     ValBool val -> show val
                     ValInt8 val -> show val
                     ValInt16 val -> show val
@@ -141,15 +156,9 @@ renderFieldGetter node (Field name _ _ _ kind _ ) =
                     ValUInt16 val -> show val
                     ValUInt32 val -> show val
                     ValUInt64 val -> show val
-                    ValFloat32 val -> show $ L.floatToWord val
-                    ValFloat64 val -> show $ L.doubleToWord val
-                    ValText val -> defName
-                    ValData val -> defName
-                    ValList val -> defName
+                    ValFloat32 val -> show val
+                    ValFloat64 val -> show val
                     ValEnum val -> show val
-                    ValStruct val -> defName
-                    ValInterface -> "()"
-                    ValAnyPointer val -> defName
               where
                 defName = "default_"<>mkStructName node<>"_"<>name
 
@@ -162,7 +171,7 @@ renderUnion node =
               , "instance L.Union "<>readerName<>" where"
               , "    type UnionTy "<>readerName<>" = "<>whichReaderName
               , "    which ("<>readerName<>" reader) = do"
-              , "        d <- L.getField reader "<>show discriminantOffset<>" :: IO Word16"
+              , "        d <- L.getReaderNumericField reader "<>show discriminantOffset<>" :: IO Word16"
               , "        case d of"
               ] ++ map renderCase unionFields ++ [
                 "            _ -> return $ "<>mkStructName node<>"_NotInSchema d"
@@ -197,20 +206,27 @@ capitalize (c:cs) = toUpper c:cs
 
 prelude :: String -> String
 prelude mod =
-    unlines [ "{-# LANGUAGE MagicHash    #-}"
-            , "{-# LANGUAGE TypeFamilies #-}"
+    unlines [ "{-# LANGUAGE MagicHash         #-}"
+            , "{-# LANGUAGE OverloadedStrings #-}"
+            , "{-# LANGUAGE TypeFamilies      #-}"
             , ""
             , "module "<>mod<>" where"
             , ""
-            , "import           Data.Coerce"
+            , "import qualified Data.ByteString        as BS"
+            , "import qualified Data.ByteString.Unsafe as BS"
+            , "import           Data.Coerce (coerce)"
             , "import           Data.Int"
             , "import           Data.Word"
             , "import           Foreign.Ptr (nullPtr)"
             , "import           GHC.Exts (Ptr(..))"
             , "import           GHC.Prim (Addr#)"
+            , "import           System.IO.Unsafe (unsafePerformIO)"
             , ""
             , "import qualified Data.CapnProto.Layout as L"
             , ""
+            , "{-# NOINLINE emptyString #-}"
+            , "emptyString :: BS.ByteString"
+            , "emptyString = unsafePerformIO $ BS.unsafePackAddressLen 0 \"\\NULL\"#"
             ]
 
 isUnionMember :: Field -> Bool
@@ -287,7 +303,7 @@ typeToHsType ty =
         TyEnum n _ -> mkEnumName n
         TyStruct n _ -> mkStructName n<>"_Reader"
         TyInterface _ _ -> "()" -- TODO: actually implement this
-        TyAnyPointer _ -> "()" -- TODO: actually implement this
+        TyAnyPointer _ -> "L.PointerReader" -- TODO: actually implement this
 
 mkData :: StructNode -> String
 mkData node =

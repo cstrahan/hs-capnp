@@ -1,17 +1,24 @@
-{-# LANGUAGE MagicHash    #-}
-{-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE MagicHash         #-}
+{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE TypeFamilies      #-}
 
 module Data.CapnProto.Schema.Generated where
 
+import qualified Data.ByteString        as BS
+import qualified Data.ByteString.Unsafe as BS
+import           Data.Coerce (coerce)
 import           Data.Int
-import           Data.Coerce
 import           Data.Word
 import           Foreign.Ptr (nullPtr)
 import           GHC.Exts (Ptr(..))
 import           GHC.Prim (Addr#)
+import           System.IO.Unsafe (unsafePerformIO)
 
 import qualified Data.CapnProto.Layout as L
 
+{-# NOINLINE emptyString #-}
+emptyString :: BS.ByteString
+emptyString = unsafePerformIO $ BS.unsafePackAddressLen 0 "\NULL"#
 
 data Annotation_Reader = Annotation_Reader L.StructReader
 
@@ -21,21 +28,21 @@ instance L.FromStructReader Annotation_Reader where
 instance L.ListElement Annotation_Reader where
     elementSize _ = L.SzInlineComposite
     getReaderElement reader index =
-        fmap Annotation_Reader $ (L.getReaderElement (coerce reader) index)
+        fmap Annotation_Reader $ L.getReaderElement (coerce reader) index
     getBuilderElement = undefined
     setBuilderElement = undefined
 
 instance HasId Annotation_Reader where
     type IdTy Annotation_Reader = Word64
-    getId (Annotation_Reader reader) = L.getField reader 0
+    getId (Annotation_Reader reader) = L.getReaderNumericField reader 0
 
 instance HasValue Annotation_Reader where
     type ValueTy Annotation_Reader = Value_Reader
-    getValue (Annotation_Reader reader) = fmap Value_Reader $ L.getField reader 0
+    getValue (Annotation_Reader reader) = fmap Value_Reader $ L.getReaderStruct (L.getReaderPointerField reader 0) nullPtr
 
 instance HasBrand Annotation_Reader where
     type BrandTy Annotation_Reader = Brand_Reader
-    getBrand (Annotation_Reader reader) = fmap Brand_Reader $ L.getField reader 1
+    getBrand (Annotation_Reader reader) = fmap Brand_Reader $ L.getReaderStruct (L.getReaderPointerField reader 1) nullPtr
 
 
 data Brand_Reader = Brand_Reader L.StructReader
@@ -52,7 +59,7 @@ instance L.ListElement Brand_Reader where
 
 instance HasScopes Brand_Reader where
     type ScopesTy Brand_Reader = (L.ListReader Brand_Scope_Reader)
-    getScopes (Brand_Reader reader) = L.getField reader 0
+    getScopes (Brand_Reader reader) = L.getReaderList (L.getReaderPointerField reader 0) nullPtr
 
 
 data Brand_Binding_Reader = Brand_Binding_Reader L.StructReader
@@ -75,10 +82,10 @@ data Brand_Binding_Which_Reader
 instance L.Union Brand_Binding_Reader where
     type UnionTy Brand_Binding_Reader = Brand_Binding_Which_Reader
     which (Brand_Binding_Reader reader) = do
-        d <- L.getField reader 0 :: IO Word16
+        d <- L.getReaderNumericField reader 0 :: IO Word16
         case d of
             0 -> return Brand_Binding_unbound
-            1 -> fmap Brand_Binding_type $ fmap Type_Reader $ L.getField reader 0
+            1 -> fmap Brand_Binding_type $ fmap Type_Reader $ L.getReaderStruct (L.getReaderPointerField reader 0) nullPtr
             _ -> return $ Brand_Binding_NotInSchema d
 
 
@@ -96,7 +103,7 @@ instance L.ListElement Brand_Scope_Reader where
 
 instance HasScopeId Brand_Scope_Reader where
     type ScopeIdTy Brand_Scope_Reader = Word64
-    getScopeId (Brand_Scope_Reader reader) = L.getField reader 0
+    getScopeId (Brand_Scope_Reader reader) = L.getReaderNumericField reader 0
 
 data Brand_Scope_Which_Reader
   = Brand_Scope_NotInSchema Word16
@@ -106,9 +113,9 @@ data Brand_Scope_Which_Reader
 instance L.Union Brand_Scope_Reader where
     type UnionTy Brand_Scope_Reader = Brand_Scope_Which_Reader
     which (Brand_Scope_Reader reader) = do
-        d <- L.getField reader 4 :: IO Word16
+        d <- L.getReaderNumericField reader 4 :: IO Word16
         case d of
-            0 -> fmap Brand_Scope_bind $ L.getField reader 0
+            0 -> fmap Brand_Scope_bind $ L.getReaderList (L.getReaderPointerField reader 0) nullPtr
             1 -> return Brand_Scope_inherit
             _ -> return $ Brand_Scope_NotInSchema d
 
@@ -127,11 +134,11 @@ instance L.ListElement CodeGeneratorRequest_Reader where
 
 instance HasNodes CodeGeneratorRequest_Reader where
     type NodesTy CodeGeneratorRequest_Reader = (L.ListReader Node_Reader)
-    getNodes (CodeGeneratorRequest_Reader reader) = L.getField reader 0
+    getNodes (CodeGeneratorRequest_Reader reader) = L.getReaderList (L.getReaderPointerField reader 0) nullPtr
 
 instance HasRequestedFiles CodeGeneratorRequest_Reader where
     type RequestedFilesTy CodeGeneratorRequest_Reader = (L.ListReader CodeGeneratorRequest_RequestedFile_Reader)
-    getRequestedFiles (CodeGeneratorRequest_Reader reader) = L.getField reader 1
+    getRequestedFiles (CodeGeneratorRequest_Reader reader) = L.getReaderList (L.getReaderPointerField reader 1) nullPtr
 
 
 data CodeGeneratorRequest_RequestedFile_Reader = CodeGeneratorRequest_RequestedFile_Reader L.StructReader
@@ -148,15 +155,15 @@ instance L.ListElement CodeGeneratorRequest_RequestedFile_Reader where
 
 instance HasId CodeGeneratorRequest_RequestedFile_Reader where
     type IdTy CodeGeneratorRequest_RequestedFile_Reader = Word64
-    getId (CodeGeneratorRequest_RequestedFile_Reader reader) = L.getField reader 0
+    getId (CodeGeneratorRequest_RequestedFile_Reader reader) = L.getReaderNumericField reader 0
 
 instance HasFilename CodeGeneratorRequest_RequestedFile_Reader where
     type FilenameTy CodeGeneratorRequest_RequestedFile_Reader = L.TextReader
-    getFilename (CodeGeneratorRequest_RequestedFile_Reader reader) = L.getField reader 0
+    getFilename (CodeGeneratorRequest_RequestedFile_Reader reader) = L.getReaderText (L.getReaderPointerField reader 0) ""
 
 instance HasImports CodeGeneratorRequest_RequestedFile_Reader where
     type ImportsTy CodeGeneratorRequest_RequestedFile_Reader = (L.ListReader CodeGeneratorRequest_RequestedFile_Import_Reader)
-    getImports (CodeGeneratorRequest_RequestedFile_Reader reader) = L.getField reader 1
+    getImports (CodeGeneratorRequest_RequestedFile_Reader reader) = L.getReaderList (L.getReaderPointerField reader 1) nullPtr
 
 
 data CodeGeneratorRequest_RequestedFile_Import_Reader = CodeGeneratorRequest_RequestedFile_Import_Reader L.StructReader
@@ -173,11 +180,11 @@ instance L.ListElement CodeGeneratorRequest_RequestedFile_Import_Reader where
 
 instance HasId CodeGeneratorRequest_RequestedFile_Import_Reader where
     type IdTy CodeGeneratorRequest_RequestedFile_Import_Reader = Word64
-    getId (CodeGeneratorRequest_RequestedFile_Import_Reader reader) = L.getField reader 0
+    getId (CodeGeneratorRequest_RequestedFile_Import_Reader reader) = L.getReaderNumericField reader 0
 
 instance HasName CodeGeneratorRequest_RequestedFile_Import_Reader where
     type NameTy CodeGeneratorRequest_RequestedFile_Import_Reader = L.TextReader
-    getName (CodeGeneratorRequest_RequestedFile_Import_Reader reader) = L.getField reader 0
+    getName (CodeGeneratorRequest_RequestedFile_Import_Reader reader) = L.getReaderText (L.getReaderPointerField reader 0) ""
 
 
 data Enumerant_Reader = Enumerant_Reader L.StructReader
@@ -194,15 +201,15 @@ instance L.ListElement Enumerant_Reader where
 
 instance HasName Enumerant_Reader where
     type NameTy Enumerant_Reader = L.TextReader
-    getName (Enumerant_Reader reader) = L.getField reader 0
+    getName (Enumerant_Reader reader) = L.getReaderText (L.getReaderPointerField reader 0) ""
 
 instance HasCodeOrder Enumerant_Reader where
     type CodeOrderTy Enumerant_Reader = Word16
-    getCodeOrder (Enumerant_Reader reader) = L.getField reader 0
+    getCodeOrder (Enumerant_Reader reader) = L.getReaderNumericField reader 0
 
 instance HasAnnotations Enumerant_Reader where
     type AnnotationsTy Enumerant_Reader = (L.ListReader Annotation_Reader)
-    getAnnotations (Enumerant_Reader reader) = L.getField reader 1
+    getAnnotations (Enumerant_Reader reader) = L.getReaderList (L.getReaderPointerField reader 1) nullPtr
 
 
 data Field_Reader = Field_Reader L.StructReader
@@ -219,19 +226,19 @@ instance L.ListElement Field_Reader where
 
 instance HasName Field_Reader where
     type NameTy Field_Reader = L.TextReader
-    getName (Field_Reader reader) = L.getField reader 0
+    getName (Field_Reader reader) = L.getReaderText (L.getReaderPointerField reader 0) ""
 
 instance HasCodeOrder Field_Reader where
     type CodeOrderTy Field_Reader = Word16
-    getCodeOrder (Field_Reader reader) = L.getField reader 0
+    getCodeOrder (Field_Reader reader) = L.getReaderNumericField reader 0
 
 instance HasAnnotations Field_Reader where
     type AnnotationsTy Field_Reader = (L.ListReader Annotation_Reader)
-    getAnnotations (Field_Reader reader) = L.getField reader 1
+    getAnnotations (Field_Reader reader) = L.getReaderList (L.getReaderPointerField reader 1) nullPtr
 
 instance HasDiscriminantValue Field_Reader where
     type DiscriminantValueTy Field_Reader = Word16
-    getDiscriminantValue (Field_Reader reader) = L.getField' reader 1 65535
+    getDiscriminantValue (Field_Reader reader) = L.getReaderNumericFieldMasked reader 1 65535
 
 instance HasOrdinal Field_Reader where
     type OrdinalTy Field_Reader = Field_ordinal_Reader
@@ -245,7 +252,7 @@ data Field_Which_Reader
 instance L.Union Field_Reader where
     type UnionTy Field_Reader = Field_Which_Reader
     which (Field_Reader reader) = do
-        d <- L.getField reader 4 :: IO Word16
+        d <- L.getReaderNumericField reader 4 :: IO Word16
         case d of
             0 -> fmap Field_slot $ return . Field_slot_Reader $ reader
             1 -> fmap Field_group $ return . Field_group_Reader $ reader
@@ -256,7 +263,7 @@ data Field_group_Reader = Field_group_Reader L.StructReader
 
 instance HasTypeId Field_group_Reader where
     type TypeIdTy Field_group_Reader = Word64
-    getTypeId (Field_group_Reader reader) = L.getField reader 2
+    getTypeId (Field_group_Reader reader) = L.getReaderNumericField reader 2
 
 
 data Field_ordinal_Reader = Field_ordinal_Reader L.StructReader
@@ -269,10 +276,10 @@ data Field_ordinal_Which_Reader
 instance L.Union Field_ordinal_Reader where
     type UnionTy Field_ordinal_Reader = Field_ordinal_Which_Reader
     which (Field_ordinal_Reader reader) = do
-        d <- L.getField reader 5 :: IO Word16
+        d <- L.getReaderNumericField reader 5 :: IO Word16
         case d of
             0 -> return Field_ordinal_implicit
-            1 -> fmap Field_ordinal_explicit $ L.getField reader 6
+            1 -> fmap Field_ordinal_explicit $ L.getReaderNumericField reader 6
             _ -> return $ Field_ordinal_NotInSchema d
 
 
@@ -280,19 +287,19 @@ data Field_slot_Reader = Field_slot_Reader L.StructReader
 
 instance HasOffset Field_slot_Reader where
     type OffsetTy Field_slot_Reader = Word32
-    getOffset (Field_slot_Reader reader) = L.getField reader 1
+    getOffset (Field_slot_Reader reader) = L.getReaderNumericField reader 1
 
 instance HasType Field_slot_Reader where
     type TypeTy Field_slot_Reader = Type_Reader
-    getType (Field_slot_Reader reader) = fmap Type_Reader $ L.getField reader 2
+    getType (Field_slot_Reader reader) = fmap Type_Reader $ L.getReaderStruct (L.getReaderPointerField reader 2) nullPtr
 
 instance HasDefaultValue Field_slot_Reader where
     type DefaultValueTy Field_slot_Reader = Value_Reader
-    getDefaultValue (Field_slot_Reader reader) = fmap Value_Reader $ L.getField reader 3
+    getDefaultValue (Field_slot_Reader reader) = fmap Value_Reader $ L.getReaderStruct (L.getReaderPointerField reader 3) nullPtr
 
 instance HasHadExplicitDefault Field_slot_Reader where
     type HadExplicitDefaultTy Field_slot_Reader = Bool
-    getHadExplicitDefault (Field_slot_Reader reader) = L.getField reader 128
+    getHadExplicitDefault (Field_slot_Reader reader) = L.getReaderBoolField reader 128
 
 
 data Method_Reader = Method_Reader L.StructReader
@@ -309,35 +316,35 @@ instance L.ListElement Method_Reader where
 
 instance HasName Method_Reader where
     type NameTy Method_Reader = L.TextReader
-    getName (Method_Reader reader) = L.getField reader 0
+    getName (Method_Reader reader) = L.getReaderText (L.getReaderPointerField reader 0) ""
 
 instance HasCodeOrder Method_Reader where
     type CodeOrderTy Method_Reader = Word16
-    getCodeOrder (Method_Reader reader) = L.getField reader 0
+    getCodeOrder (Method_Reader reader) = L.getReaderNumericField reader 0
 
 instance HasParamStructType Method_Reader where
     type ParamStructTypeTy Method_Reader = Word64
-    getParamStructType (Method_Reader reader) = L.getField reader 1
+    getParamStructType (Method_Reader reader) = L.getReaderNumericField reader 1
 
 instance HasResultStructType Method_Reader where
     type ResultStructTypeTy Method_Reader = Word64
-    getResultStructType (Method_Reader reader) = L.getField reader 2
+    getResultStructType (Method_Reader reader) = L.getReaderNumericField reader 2
 
 instance HasAnnotations Method_Reader where
     type AnnotationsTy Method_Reader = (L.ListReader Annotation_Reader)
-    getAnnotations (Method_Reader reader) = L.getField reader 1
+    getAnnotations (Method_Reader reader) = L.getReaderList (L.getReaderPointerField reader 1) nullPtr
 
 instance HasParamBrand Method_Reader where
     type ParamBrandTy Method_Reader = Brand_Reader
-    getParamBrand (Method_Reader reader) = fmap Brand_Reader $ L.getField reader 2
+    getParamBrand (Method_Reader reader) = fmap Brand_Reader $ L.getReaderStruct (L.getReaderPointerField reader 2) nullPtr
 
 instance HasResultBrand Method_Reader where
     type ResultBrandTy Method_Reader = Brand_Reader
-    getResultBrand (Method_Reader reader) = fmap Brand_Reader $ L.getField reader 3
+    getResultBrand (Method_Reader reader) = fmap Brand_Reader $ L.getReaderStruct (L.getReaderPointerField reader 3) nullPtr
 
 instance HasImplicitParameters Method_Reader where
     type ImplicitParametersTy Method_Reader = (L.ListReader Node_Parameter_Reader)
-    getImplicitParameters (Method_Reader reader) = L.getField reader 4
+    getImplicitParameters (Method_Reader reader) = L.getReaderList (L.getReaderPointerField reader 4) nullPtr
 
 
 data Node_Reader = Node_Reader L.StructReader
@@ -354,35 +361,35 @@ instance L.ListElement Node_Reader where
 
 instance HasId Node_Reader where
     type IdTy Node_Reader = Word64
-    getId (Node_Reader reader) = L.getField reader 0
+    getId (Node_Reader reader) = L.getReaderNumericField reader 0
 
 instance HasDisplayName Node_Reader where
     type DisplayNameTy Node_Reader = L.TextReader
-    getDisplayName (Node_Reader reader) = L.getField reader 0
+    getDisplayName (Node_Reader reader) = L.getReaderText (L.getReaderPointerField reader 0) ""
 
 instance HasDisplayNamePrefixLength Node_Reader where
     type DisplayNamePrefixLengthTy Node_Reader = Word32
-    getDisplayNamePrefixLength (Node_Reader reader) = L.getField reader 2
+    getDisplayNamePrefixLength (Node_Reader reader) = L.getReaderNumericField reader 2
 
 instance HasScopeId Node_Reader where
     type ScopeIdTy Node_Reader = Word64
-    getScopeId (Node_Reader reader) = L.getField reader 2
+    getScopeId (Node_Reader reader) = L.getReaderNumericField reader 2
 
 instance HasNestedNodes Node_Reader where
     type NestedNodesTy Node_Reader = (L.ListReader Node_NestedNode_Reader)
-    getNestedNodes (Node_Reader reader) = L.getField reader 1
+    getNestedNodes (Node_Reader reader) = L.getReaderList (L.getReaderPointerField reader 1) nullPtr
 
 instance HasAnnotations Node_Reader where
     type AnnotationsTy Node_Reader = (L.ListReader Annotation_Reader)
-    getAnnotations (Node_Reader reader) = L.getField reader 2
+    getAnnotations (Node_Reader reader) = L.getReaderList (L.getReaderPointerField reader 2) nullPtr
 
 instance HasParameters Node_Reader where
     type ParametersTy Node_Reader = (L.ListReader Node_Parameter_Reader)
-    getParameters (Node_Reader reader) = L.getField reader 5
+    getParameters (Node_Reader reader) = L.getReaderList (L.getReaderPointerField reader 5) nullPtr
 
 instance HasIsGeneric Node_Reader where
     type IsGenericTy Node_Reader = Bool
-    getIsGeneric (Node_Reader reader) = L.getField reader 288
+    getIsGeneric (Node_Reader reader) = L.getReaderBoolField reader 288
 
 data Node_Which_Reader
   = Node_NotInSchema Word16
@@ -396,7 +403,7 @@ data Node_Which_Reader
 instance L.Union Node_Reader where
     type UnionTy Node_Reader = Node_Which_Reader
     which (Node_Reader reader) = do
-        d <- L.getField reader 6 :: IO Word16
+        d <- L.getReaderNumericField reader 6 :: IO Word16
         case d of
             0 -> return Node_file
             1 -> fmap Node_struct $ return . Node_struct_Reader $ reader
@@ -421,11 +428,11 @@ instance L.ListElement Node_NestedNode_Reader where
 
 instance HasName Node_NestedNode_Reader where
     type NameTy Node_NestedNode_Reader = L.TextReader
-    getName (Node_NestedNode_Reader reader) = L.getField reader 0
+    getName (Node_NestedNode_Reader reader) = L.getReaderText (L.getReaderPointerField reader 0) ""
 
 instance HasId Node_NestedNode_Reader where
     type IdTy Node_NestedNode_Reader = Word64
-    getId (Node_NestedNode_Reader reader) = L.getField reader 0
+    getId (Node_NestedNode_Reader reader) = L.getReaderNumericField reader 0
 
 
 data Node_Parameter_Reader = Node_Parameter_Reader L.StructReader
@@ -442,122 +449,122 @@ instance L.ListElement Node_Parameter_Reader where
 
 instance HasName Node_Parameter_Reader where
     type NameTy Node_Parameter_Reader = L.TextReader
-    getName (Node_Parameter_Reader reader) = L.getField reader 0
+    getName (Node_Parameter_Reader reader) = L.getReaderText (L.getReaderPointerField reader 0) ""
 
 
 data Node_annotation_Reader = Node_annotation_Reader L.StructReader
 
 instance HasType Node_annotation_Reader where
     type TypeTy Node_annotation_Reader = Type_Reader
-    getType (Node_annotation_Reader reader) = fmap Type_Reader $ L.getField reader 3
+    getType (Node_annotation_Reader reader) = fmap Type_Reader $ L.getReaderStruct (L.getReaderPointerField reader 3) nullPtr
 
 instance HasTargetsFile Node_annotation_Reader where
     type TargetsFileTy Node_annotation_Reader = Bool
-    getTargetsFile (Node_annotation_Reader reader) = L.getField reader 112
+    getTargetsFile (Node_annotation_Reader reader) = L.getReaderBoolField reader 112
 
 instance HasTargetsConst Node_annotation_Reader where
     type TargetsConstTy Node_annotation_Reader = Bool
-    getTargetsConst (Node_annotation_Reader reader) = L.getField reader 113
+    getTargetsConst (Node_annotation_Reader reader) = L.getReaderBoolField reader 113
 
 instance HasTargetsEnum Node_annotation_Reader where
     type TargetsEnumTy Node_annotation_Reader = Bool
-    getTargetsEnum (Node_annotation_Reader reader) = L.getField reader 114
+    getTargetsEnum (Node_annotation_Reader reader) = L.getReaderBoolField reader 114
 
 instance HasTargetsEnumerant Node_annotation_Reader where
     type TargetsEnumerantTy Node_annotation_Reader = Bool
-    getTargetsEnumerant (Node_annotation_Reader reader) = L.getField reader 115
+    getTargetsEnumerant (Node_annotation_Reader reader) = L.getReaderBoolField reader 115
 
 instance HasTargetsStruct Node_annotation_Reader where
     type TargetsStructTy Node_annotation_Reader = Bool
-    getTargetsStruct (Node_annotation_Reader reader) = L.getField reader 116
+    getTargetsStruct (Node_annotation_Reader reader) = L.getReaderBoolField reader 116
 
 instance HasTargetsField Node_annotation_Reader where
     type TargetsFieldTy Node_annotation_Reader = Bool
-    getTargetsField (Node_annotation_Reader reader) = L.getField reader 117
+    getTargetsField (Node_annotation_Reader reader) = L.getReaderBoolField reader 117
 
 instance HasTargetsUnion Node_annotation_Reader where
     type TargetsUnionTy Node_annotation_Reader = Bool
-    getTargetsUnion (Node_annotation_Reader reader) = L.getField reader 118
+    getTargetsUnion (Node_annotation_Reader reader) = L.getReaderBoolField reader 118
 
 instance HasTargetsGroup Node_annotation_Reader where
     type TargetsGroupTy Node_annotation_Reader = Bool
-    getTargetsGroup (Node_annotation_Reader reader) = L.getField reader 119
+    getTargetsGroup (Node_annotation_Reader reader) = L.getReaderBoolField reader 119
 
 instance HasTargetsInterface Node_annotation_Reader where
     type TargetsInterfaceTy Node_annotation_Reader = Bool
-    getTargetsInterface (Node_annotation_Reader reader) = L.getField reader 120
+    getTargetsInterface (Node_annotation_Reader reader) = L.getReaderBoolField reader 120
 
 instance HasTargetsMethod Node_annotation_Reader where
     type TargetsMethodTy Node_annotation_Reader = Bool
-    getTargetsMethod (Node_annotation_Reader reader) = L.getField reader 121
+    getTargetsMethod (Node_annotation_Reader reader) = L.getReaderBoolField reader 121
 
 instance HasTargetsParam Node_annotation_Reader where
     type TargetsParamTy Node_annotation_Reader = Bool
-    getTargetsParam (Node_annotation_Reader reader) = L.getField reader 122
+    getTargetsParam (Node_annotation_Reader reader) = L.getReaderBoolField reader 122
 
 instance HasTargetsAnnotation Node_annotation_Reader where
     type TargetsAnnotationTy Node_annotation_Reader = Bool
-    getTargetsAnnotation (Node_annotation_Reader reader) = L.getField reader 123
+    getTargetsAnnotation (Node_annotation_Reader reader) = L.getReaderBoolField reader 123
 
 
 data Node_const_Reader = Node_const_Reader L.StructReader
 
 instance HasType Node_const_Reader where
     type TypeTy Node_const_Reader = Type_Reader
-    getType (Node_const_Reader reader) = fmap Type_Reader $ L.getField reader 3
+    getType (Node_const_Reader reader) = fmap Type_Reader $ L.getReaderStruct (L.getReaderPointerField reader 3) nullPtr
 
 instance HasValue Node_const_Reader where
     type ValueTy Node_const_Reader = Value_Reader
-    getValue (Node_const_Reader reader) = fmap Value_Reader $ L.getField reader 4
+    getValue (Node_const_Reader reader) = fmap Value_Reader $ L.getReaderStruct (L.getReaderPointerField reader 4) nullPtr
 
 
 data Node_enum_Reader = Node_enum_Reader L.StructReader
 
 instance HasEnumerants Node_enum_Reader where
     type EnumerantsTy Node_enum_Reader = (L.ListReader Enumerant_Reader)
-    getEnumerants (Node_enum_Reader reader) = L.getField reader 3
+    getEnumerants (Node_enum_Reader reader) = L.getReaderList (L.getReaderPointerField reader 3) nullPtr
 
 
 data Node_interface_Reader = Node_interface_Reader L.StructReader
 
 instance HasMethods Node_interface_Reader where
     type MethodsTy Node_interface_Reader = (L.ListReader Method_Reader)
-    getMethods (Node_interface_Reader reader) = L.getField reader 3
+    getMethods (Node_interface_Reader reader) = L.getReaderList (L.getReaderPointerField reader 3) nullPtr
 
 instance HasSuperclasses Node_interface_Reader where
     type SuperclassesTy Node_interface_Reader = (L.ListReader Superclass_Reader)
-    getSuperclasses (Node_interface_Reader reader) = L.getField reader 4
+    getSuperclasses (Node_interface_Reader reader) = L.getReaderList (L.getReaderPointerField reader 4) nullPtr
 
 
 data Node_struct_Reader = Node_struct_Reader L.StructReader
 
 instance HasDataWordCount Node_struct_Reader where
     type DataWordCountTy Node_struct_Reader = Word16
-    getDataWordCount (Node_struct_Reader reader) = L.getField reader 7
+    getDataWordCount (Node_struct_Reader reader) = L.getReaderNumericField reader 7
 
 instance HasPointerCount Node_struct_Reader where
     type PointerCountTy Node_struct_Reader = Word16
-    getPointerCount (Node_struct_Reader reader) = L.getField reader 12
+    getPointerCount (Node_struct_Reader reader) = L.getReaderNumericField reader 12
 
 instance HasPreferredListEncoding Node_struct_Reader where
     type PreferredListEncodingTy Node_struct_Reader = ElementSize
-    getPreferredListEncoding (Node_struct_Reader reader) = fmap (toEnum . fromIntegral) (L.getField reader 13 :: IO Word16)
+    getPreferredListEncoding (Node_struct_Reader reader) = fmap (toEnum . fromIntegral) (L.getReaderNumericField reader 13 :: IO Word16)
 
 instance HasIsGroup Node_struct_Reader where
     type IsGroupTy Node_struct_Reader = Bool
-    getIsGroup (Node_struct_Reader reader) = L.getField reader 224
+    getIsGroup (Node_struct_Reader reader) = L.getReaderBoolField reader 224
 
 instance HasDiscriminantCount Node_struct_Reader where
     type DiscriminantCountTy Node_struct_Reader = Word16
-    getDiscriminantCount (Node_struct_Reader reader) = L.getField reader 15
+    getDiscriminantCount (Node_struct_Reader reader) = L.getReaderNumericField reader 15
 
 instance HasDiscriminantOffset Node_struct_Reader where
     type DiscriminantOffsetTy Node_struct_Reader = Word32
-    getDiscriminantOffset (Node_struct_Reader reader) = L.getField reader 8
+    getDiscriminantOffset (Node_struct_Reader reader) = L.getReaderNumericField reader 8
 
 instance HasFields Node_struct_Reader where
     type FieldsTy Node_struct_Reader = (L.ListReader Field_Reader)
-    getFields (Node_struct_Reader reader) = L.getField reader 3
+    getFields (Node_struct_Reader reader) = L.getReaderList (L.getReaderPointerField reader 3) nullPtr
 
 
 data Superclass_Reader = Superclass_Reader L.StructReader
@@ -574,11 +581,11 @@ instance L.ListElement Superclass_Reader where
 
 instance HasId Superclass_Reader where
     type IdTy Superclass_Reader = Word64
-    getId (Superclass_Reader reader) = L.getField reader 0
+    getId (Superclass_Reader reader) = L.getReaderNumericField reader 0
 
 instance HasBrand Superclass_Reader where
     type BrandTy Superclass_Reader = Brand_Reader
-    getBrand (Superclass_Reader reader) = fmap Brand_Reader $ L.getField reader 0
+    getBrand (Superclass_Reader reader) = fmap Brand_Reader $ L.getReaderStruct (L.getReaderPointerField reader 0) nullPtr
 
 
 data Type_Reader = Type_Reader L.StructReader
@@ -618,7 +625,7 @@ data Type_Which_Reader
 instance L.Union Type_Reader where
     type UnionTy Type_Reader = Type_Which_Reader
     which (Type_Reader reader) = do
-        d <- L.getField reader 0 :: IO Word16
+        d <- L.getReaderNumericField reader 0 :: IO Word16
         case d of
             0 -> return Type_void
             1 -> return Type_bool
@@ -653,7 +660,7 @@ data Type_anyPointer_Which_Reader
 instance L.Union Type_anyPointer_Reader where
     type UnionTy Type_anyPointer_Reader = Type_anyPointer_Which_Reader
     which (Type_anyPointer_Reader reader) = do
-        d <- L.getField reader 4 :: IO Word16
+        d <- L.getReaderNumericField reader 4 :: IO Word16
         case d of
             0 -> return Type_anyPointer_unconstrained
             1 -> fmap Type_anyPointer_parameter $ return . Type_anyPointer_parameter_Reader $ reader
@@ -665,58 +672,58 @@ data Type_anyPointer_implicitMethodParameter_Reader = Type_anyPointer_implicitMe
 
 instance HasParameterIndex Type_anyPointer_implicitMethodParameter_Reader where
     type ParameterIndexTy Type_anyPointer_implicitMethodParameter_Reader = Word16
-    getParameterIndex (Type_anyPointer_implicitMethodParameter_Reader reader) = L.getField reader 5
+    getParameterIndex (Type_anyPointer_implicitMethodParameter_Reader reader) = L.getReaderNumericField reader 5
 
 
 data Type_anyPointer_parameter_Reader = Type_anyPointer_parameter_Reader L.StructReader
 
 instance HasScopeId Type_anyPointer_parameter_Reader where
     type ScopeIdTy Type_anyPointer_parameter_Reader = Word64
-    getScopeId (Type_anyPointer_parameter_Reader reader) = L.getField reader 2
+    getScopeId (Type_anyPointer_parameter_Reader reader) = L.getReaderNumericField reader 2
 
 instance HasParameterIndex Type_anyPointer_parameter_Reader where
     type ParameterIndexTy Type_anyPointer_parameter_Reader = Word16
-    getParameterIndex (Type_anyPointer_parameter_Reader reader) = L.getField reader 5
+    getParameterIndex (Type_anyPointer_parameter_Reader reader) = L.getReaderNumericField reader 5
 
 
 data Type_enum_Reader = Type_enum_Reader L.StructReader
 
 instance HasTypeId Type_enum_Reader where
     type TypeIdTy Type_enum_Reader = Word64
-    getTypeId (Type_enum_Reader reader) = L.getField reader 1
+    getTypeId (Type_enum_Reader reader) = L.getReaderNumericField reader 1
 
 instance HasBrand Type_enum_Reader where
     type BrandTy Type_enum_Reader = Brand_Reader
-    getBrand (Type_enum_Reader reader) = fmap Brand_Reader $ L.getField reader 0
+    getBrand (Type_enum_Reader reader) = fmap Brand_Reader $ L.getReaderStruct (L.getReaderPointerField reader 0) nullPtr
 
 
 data Type_interface_Reader = Type_interface_Reader L.StructReader
 
 instance HasTypeId Type_interface_Reader where
     type TypeIdTy Type_interface_Reader = Word64
-    getTypeId (Type_interface_Reader reader) = L.getField reader 1
+    getTypeId (Type_interface_Reader reader) = L.getReaderNumericField reader 1
 
 instance HasBrand Type_interface_Reader where
     type BrandTy Type_interface_Reader = Brand_Reader
-    getBrand (Type_interface_Reader reader) = fmap Brand_Reader $ L.getField reader 0
+    getBrand (Type_interface_Reader reader) = fmap Brand_Reader $ L.getReaderStruct (L.getReaderPointerField reader 0) nullPtr
 
 
 data Type_list_Reader = Type_list_Reader L.StructReader
 
 instance HasElementType Type_list_Reader where
     type ElementTypeTy Type_list_Reader = Type_Reader
-    getElementType (Type_list_Reader reader) = fmap Type_Reader $ L.getField reader 0
+    getElementType (Type_list_Reader reader) = fmap Type_Reader $ L.getReaderStruct (L.getReaderPointerField reader 0) nullPtr
 
 
 data Type_struct_Reader = Type_struct_Reader L.StructReader
 
 instance HasTypeId Type_struct_Reader where
     type TypeIdTy Type_struct_Reader = Word64
-    getTypeId (Type_struct_Reader reader) = L.getField reader 1
+    getTypeId (Type_struct_Reader reader) = L.getReaderNumericField reader 1
 
 instance HasBrand Type_struct_Reader where
     type BrandTy Type_struct_Reader = Brand_Reader
-    getBrand (Type_struct_Reader reader) = fmap Brand_Reader $ L.getField reader 0
+    getBrand (Type_struct_Reader reader) = fmap Brand_Reader $ L.getReaderStruct (L.getReaderPointerField reader 0) nullPtr
 
 
 data Value_Reader = Value_Reader L.StructReader
@@ -747,36 +754,36 @@ data Value_Which_Reader
   | Value_float64 Double
   | Value_text L.TextReader
   | Value_data L.DataReader
-  | Value_list ()
+  | Value_list L.PointerReader
   | Value_enum Word16
-  | Value_struct ()
+  | Value_struct L.PointerReader
   | Value_interface
-  | Value_anyPointer ()
+  | Value_anyPointer L.PointerReader
 
 instance L.Union Value_Reader where
     type UnionTy Value_Reader = Value_Which_Reader
     which (Value_Reader reader) = do
-        d <- L.getField reader 0 :: IO Word16
+        d <- L.getReaderNumericField reader 0 :: IO Word16
         case d of
             0 -> return Value_void
-            1 -> fmap Value_bool $ L.getField reader 16
-            2 -> fmap Value_int8 $ L.getField reader 2
-            3 -> fmap Value_int16 $ L.getField reader 1
-            4 -> fmap Value_int32 $ L.getField reader 1
-            5 -> fmap Value_int64 $ L.getField reader 1
-            6 -> fmap Value_uint8 $ L.getField reader 2
-            7 -> fmap Value_uint16 $ L.getField reader 1
-            8 -> fmap Value_uint32 $ L.getField reader 1
-            9 -> fmap Value_uint64 $ L.getField reader 1
-            10 -> fmap Value_float32 $ L.getField reader 1
-            11 -> fmap Value_float64 $ L.getField reader 1
-            12 -> fmap Value_text $ L.getField reader 0
-            13 -> fmap Value_data $ L.getField reader 0
-            14 -> fmap Value_list $ L.getField reader 0
-            15 -> fmap Value_enum $ L.getField reader 1
-            16 -> fmap Value_struct $ L.getField reader 0
+            1 -> fmap Value_bool $ L.getReaderBoolField reader 16
+            2 -> fmap Value_int8 $ L.getReaderNumericField reader 2
+            3 -> fmap Value_int16 $ L.getReaderNumericField reader 1
+            4 -> fmap Value_int32 $ L.getReaderNumericField reader 1
+            5 -> fmap Value_int64 $ L.getReaderNumericField reader 1
+            6 -> fmap Value_uint8 $ L.getReaderNumericField reader 2
+            7 -> fmap Value_uint16 $ L.getReaderNumericField reader 1
+            8 -> fmap Value_uint32 $ L.getReaderNumericField reader 1
+            9 -> fmap Value_uint64 $ L.getReaderNumericField reader 1
+            10 -> fmap Value_float32 $ L.getReaderNumericField reader 1
+            11 -> fmap Value_float64 $ L.getReaderNumericField reader 1
+            12 -> fmap Value_text $ L.getReaderText (L.getReaderPointerField reader 0) ""
+            13 -> fmap Value_data $ L.getReaderData (L.getReaderPointerField reader 0) ""
+            14 -> fmap Value_list $ return $ L.getReaderPointerField reader 0
+            15 -> fmap Value_enum $ L.getReaderNumericField reader 1
+            16 -> fmap Value_struct $ return $ L.getReaderPointerField reader 0
             17 -> return Value_interface
-            18 -> fmap Value_anyPointer $ L.getField reader 0
+            18 -> fmap Value_anyPointer $ return $ L.getReaderPointerField reader 0
             _ -> return $ Value_NotInSchema d
 
 
