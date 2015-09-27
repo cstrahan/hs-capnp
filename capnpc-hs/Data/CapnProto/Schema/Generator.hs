@@ -108,36 +108,42 @@ renderFieldDefault node (Field name _ _ _ kind _ ) =
                 Just $ defName<>" :: Ptr L.WirePointer\n"<>
                        defName<>" = nullPtr" -- XXX
 
-renderFieldGetter :: StructNode -> Field -> String
-renderFieldGetter node (Field name _ _ _ kind _ ) =
+renderFieldGetter :: String -> StructNode -> Field -> String
+renderFieldGetter k node (Field name _ _ _ kind _ ) =
     case kind of
         GroupField typeNode ->
-            "return . "<>mkStructName typeNode <> "_Reader $ struct"
+            "return . "<>mkStructName typeNode <> "_"<>k<>" $ struct"
         SlotField offset ty def explicitDefault ->
             if explicitDefault
               then case ty of
                        TyVoid -> "return ()"
-                       TyText{} -> "L.getReaderText (L.getReaderPointerField struct "<>show offset<>") emptyString"
-                       TyData{} -> "L.getReaderData (L.getReaderPointerField struct "<>show offset<>") \"\""
-                       TyList{} -> "L.getReaderList (L.getReaderPointerField struct "<>show offset<>") nullPtr"
-                       TyStruct n _ -> "fmap "<>mkStructName n <> "_Reader $ "<>"L.getReaderStruct (L.getReaderPointerField struct "<>show offset<>") nullPtr"
+                       TyText{} -> "L.get"<>k<>"Text (L.get"<>k<>"PointerField struct "<>show offset<>") emptyString"
+                       TyData{} -> "L.get"<>k<>"Data (L.get"<>k<>"PointerField struct "<>show offset<>") \"\""
+                       TyList{} -> "L.get"<>k<>"List (L.get"<>k<>"PointerField struct "<>show offset<>") nullPtr"
+                       TyStruct n _ -> "fmap "<>mkStructName n <> "_"<>k<>" $ "<>"L.get"<>k<>"Struct (L.get"<>k<>"PointerField struct "<>show offset<>")"<>structSize<>"nullPtr"
                        TyInterface{} -> "error \"not implemented\""
-                       TyAnyPointer{} -> "return $ L.getReaderPointerField struct"<>show offset
-                       TyBool{} -> "L.getReaderBoolFieldMasked struct "<>show offset<>" "<>defaultValueTerm
-                       TyEnum{} -> "fmap (toEnum . fromIntegral) ("<>"L.getReaderNumericFieldMasked struct "<>show offset<>" "<>show defaultValueTerm<>" :: IO Word16)"
-                       _ -> "L.getReaderNumericFieldMasked struct "<>show offset<>" "<>defaultValueTerm
+                       TyAnyPointer{} -> "return $ L.get"<>k<>"PointerField struct"<>show offset
+                       TyBool{} -> "L.get"<>k<>"BoolFieldMasked struct "<>show offset<>" "<>defaultValueTerm
+                       TyEnum{} -> "fmap (toEnum . fromIntegral) ("<>"L.get"<>k<>"NumericFieldMasked struct "<>show offset<>" "<>show defaultValueTerm<>" :: IO Word16)"
+                       _ -> "L.get"<>k<>"NumericFieldMasked struct "<>show offset<>" "<>defaultValueTerm
               else case ty of
                        TyVoid -> "return ()"
-                       TyText{} -> "L.getReaderText (L.getReaderPointerField struct "<>show offset<>") emptyString"
-                       TyData{} -> "L.getReaderData (L.getReaderPointerField struct "<>show offset<>") \"\""
-                       TyList{} -> "L.getReaderList (L.getReaderPointerField struct "<>show offset<>") nullPtr"
-                       TyStruct n _ -> "fmap "<>mkStructName n <> "_Reader $ "<>"L.getReaderStruct (L.getReaderPointerField struct "<>show offset<>") nullPtr"
+                       TyText{} -> "L.get"<>k<>"Text (L.get"<>k<>"PointerField struct "<>show offset<>") emptyString"
+                       TyData{} -> "L.get"<>k<>"Data (L.get"<>k<>"PointerField struct "<>show offset<>") \"\""
+                       TyList{} -> "L.get"<>k<>"List (L.get"<>k<>"PointerField struct "<>show offset<>") nullPtr"
+                       TyStruct n _ -> "fmap "<>mkStructName n <> "_"<>k<>" $ "<>"L.get"<>k<>"Struct (L.get"<>k<>"PointerField struct "<>show offset<>")"<>structSize<>"nullPtr"
                        TyInterface{} -> "error \"not implemented\""
-                       TyAnyPointer{} -> "return $ L.getReaderPointerField struct "<>show offset
-                       TyBool{} -> "L.getReaderBoolField struct "<>show offset
-                       TyEnum{} -> "fmap (toEnum . fromIntegral) ("<>"L.getReaderNumericField struct "<>show offset<>" :: IO Word16)"
-                       _ -> "L.getReaderNumericField struct "<>show offset
+                       TyAnyPointer{} -> "return $ L.get"<>k<>"PointerField struct "<>show offset
+                       TyBool{} -> "L.get"<>k<>"BoolField struct "<>show offset
+                       TyEnum{} -> "fmap (toEnum . fromIntegral) ("<>"L.get"<>k<>"NumericField struct "<>show offset<>" :: IO Word16)"
+                       _ -> "L.get"<>k<>"NumericField struct "<>show offset
           where
+            dataWords = structNodeDataWordCount node
+            pointers = structNodePointerCount node
+            structSize =
+                if k == "Reader"
+                  then " "
+                  else " (L.StructSize "<>show dataWords<>" "<>show pointers<>") "
             defaultValueTerm =
                 case def of
                     ValVoid -> "()"
@@ -165,31 +171,45 @@ renderFieldGetter node (Field name _ _ _ kind _ ) =
 renderUnion :: StructNode -> String
 renderUnion node =
     unlines $ [ "data "<>whichReaderName
-              , "  = "<> mkStructName node<>"_NotInSchema Word16"
-              , "  | "<>intercalate "\n  | " (map renderVariant unionFields)
+              , "  = "<> mkStructName node<>"_NotInSchema_Reader_ Word16"
+              , "  | "<>intercalate "\n  | " (map (renderVariant "Reader") unionFields)
+              , ""
+              , "data "<>whichBuilderName
+              , "  = "<> mkStructName node<>"_NotInSchema_Builder_ Word16"
+              , "  | "<>intercalate "\n  | " (map (renderVariant "Builder") unionFields)
               , ""
               , "instance L.Union "<>readerName<>" where"
               , "    type UnionTy "<>readerName<>" = "<>whichReaderName
               , "    which ("<>readerName<>" struct) = do"
               , "        d <- L.getReaderNumericField struct "<>show discriminantOffset<>" :: IO Word16"
               , "        case d of"
-              ] ++ map renderCase unionFields ++ [
-                "            _ -> return $ "<>mkStructName node<>"_NotInSchema d"
+              ] ++ map (renderCase "Reader") unionFields ++ [
+                "            _ -> return $ "<>mkStructName node<>"_NotInSchema_Reader_ d"
+              , ""
+              , "instance L.Union "<>builderName<>" where"
+              , "    type UnionTy "<>builderName<>" = "<>whichBuilderName
+              , "    which ("<>builderName<>" struct) = do"
+              , "        d <- L.getBuilderNumericField struct "<>show discriminantOffset<>" :: IO Word16"
+              , "        case d of"
+              ] ++ map (renderCase "Builder") unionFields ++ [
+                "            _ -> return $ "<>mkStructName node<>"_NotInSchema_Builder_ d"
               ]
   where
     whichReaderName = mkStructName node<>"_Which_Reader"
     readerName = mkStructName node<>"_Reader"
+    whichBuilderName = mkStructName node<>"_Which_Builder"
+    builderName = mkStructName node<>"_Builder"
     discriminantOffset = structNodeDiscriminantOffset node
     fields = structNodeFields node
     unionFields = filter isUnionMember fields
-    renderVariant field =
+    renderVariant k field =
         if isVoidField field
-          then mkStructName node <>"_"<>fieldName field
-          else mkStructName node <>"_"<>fieldName field<>" "<>fieldToHsType field
-    renderCase field@(Field name _ _ (Just discriminant) kind _ ) =
+          then mkStructName node <>"_"<>fieldName field<>"_"<>k<>"_"
+          else mkStructName node <>"_"<>fieldName field<>"_"<>k<>"_ "<>fieldToHsType k field
+    renderCase k field@(Field name _ _ (Just discriminant) kind _ ) =
         if isVoidField field
-          then "            "<>show discriminant<>" -> return "<>mkStructName node <>"_"<>name
-          else "            "<>show discriminant<>" -> fmap "<>mkStructName node <>"_"<>name<>" $ "<>renderFieldGetter node field
+          then "            "<>show discriminant<>" -> return "<>mkStructName node <>"_"<>name<>"_"<>k<>"_"
+          else "            "<>show discriminant<>" -> fmap "<>mkStructName node <>"_"<>name<>"_"<>k<>"_ $ "<>renderFieldGetter k node field
 
 isVoidField :: Field -> Bool
 isVoidField field =
@@ -257,8 +277,12 @@ renderEnum node =
               , ""
               , "instance L.ListElement "<>enumName<>" where"
               , "    elementSize _ = L.SzTwoBytes"
+              , ""
+              , "instance L.ListReaderElement "<>enumName<>" where"
               , "    getReaderElement list index ="
               , "        fmap (toEnum . fromIntegral) (L.getReaderElement (coerce list) index :: IO Word16)"
+              , ""
+              , "instance L.ListBuilderElement "<>enumName<>" where"
               , "    getBuilderElement list index ="
               , "        fmap (toEnum . fromIntegral) (L.getBuilderElement (coerce list) index :: IO Word16)"
               , "    setBuilderElement list index val ="
@@ -275,17 +299,17 @@ renderEnum node =
     fromEnumCase (enum, i) =
         "            "<>enumName<>"_"<>enumerantName enum<>" -> "<>show i
 
-fieldToHsType :: Field -> String
-fieldToHsType field =
+fieldToHsType :: String -> Field -> String
+fieldToHsType k field =
     case fieldKind field of
         SlotField offset fieldType defaultValue hadExplicitDefault ->
-            typeToHsType fieldType
+            typeToHsType k fieldType
         GroupField typeNode ->
             -- we cheat a little bit here, by wrapping the group node in a Type
-            typeToHsType (TyStruct typeNode Brand)
+            typeToHsType k (TyStruct typeNode Brand)
 
-typeToHsType :: Type -> String
-typeToHsType ty =
+typeToHsType :: String -> Type -> String
+typeToHsType k ty =
     case ty of
         TyVoid -> "()"
         TyBool -> "Bool"
@@ -299,17 +323,18 @@ typeToHsType ty =
         TyUInt64 -> "Word64"
         TyFloat32 -> "Float"
         TyFloat64 -> "Double"
-        TyText -> "L.TextReader"
-        TyData -> "L.DataReader"
-        TyList ty -> "(L.ListReader "<>typeToHsType ty<>")"
+        TyText -> "L.Text"<>k
+        TyData -> "L.Data"<>k
+        TyList ty -> "(L.List"<>k<>" "<>typeToHsType k ty<>")"
         TyEnum n _ -> mkEnumName n
-        TyStruct n _ -> mkStructName n<>"_Reader"
+        TyStruct n _ -> mkStructName n<>"_"<>k
         TyInterface _ _ -> "()" -- TODO: actually implement this
-        TyAnyPointer _ -> "L.PointerReader"
+        TyAnyPointer _ -> "L.Pointer"<>k
 
 mkData :: StructNode -> String
 mkData node =
     unlines $ [ "data "<>readerName<>" = "<>readerName<>" L.StructReader"
+              , "data "<>builderName<>" = "<>builderName<>" L.StructBuilder"
               ] ++ if isGroup then [] else
               [ ""
               , "instance L.FromStructReader "<>readerName<>" where"
@@ -348,9 +373,14 @@ mkClass field =
 renderField :: StructNode -> Field -> String
 renderField node field@(Field name _ _ _ kind _) =
     unlines [ "instance Has"<>capField<>" "<>readerName<>" where"
-            , "    type "<>capField<>"Ty "<>readerName<>" = "<>fieldToHsType field
-            , "    get"<>capField<>" ("<>readerName<>" struct) = "<>renderFieldGetter node field
+            , "    type "<>capField<>"Ty "<>readerName<>" = "<>fieldToHsType "Reader" field
+            , "    get"<>capField<>" ("<>readerName<>" struct) = "<>renderFieldGetter "Reader" node field
+            , ""
+            , "instance Has"<>capField<>" "<>builderName<>" where"
+            , "    type "<>capField<>"Ty "<>builderName<>" = "<>fieldToHsType "Builder" field
+            , "    get"<>capField<>" ("<>builderName<>" struct) = "<>renderFieldGetter "Builder" node field
             ]
   where
     capField = capitalize name
     readerName = mkStructName node<>"_Reader"
+    builderName = mkStructName node<>"_Builder"

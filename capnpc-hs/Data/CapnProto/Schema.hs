@@ -262,14 +262,14 @@ readSchema handle = do
     readNode :: NodeMap -> G.Node_Reader -> IO Node
     readNode nm node =
         L.which node >>= \case
-            G.Node_NotInSchema _ -> fail "UNKOWN NODE KIND"
-            G.Node_file -> fmap File $
+            G.Node_NotInSchema_Reader_ _ -> fail "UNKOWN NODE KIND"
+            G.Node_file_Reader_ -> fmap File $
                 FileNode
                     <$> G.getId node
                     <*> (textToString <$> G.getDisplayName node)
                     <*> G.getScopeId node
                     <*> G.getIsGeneric node
-            G.Node_struct struct -> fmap Struct $
+            G.Node_struct_Reader_ struct -> fmap Struct $
                 StructNode
                     <$> G.getId node
                     <*> (textToString <$> G.getDisplayName node)
@@ -282,14 +282,14 @@ readSchema handle = do
                     <*> G.getDiscriminantCount struct
                     <*> G.getDiscriminantOffset struct
                     <*> (readFields nm =<< G.getFields struct)
-            G.Node_enum enum -> fmap Enum $
+            G.Node_enum_Reader_ enum -> fmap Enum $
                 EnumNode
                     <$> G.getId node
                     <*> (textToString <$> G.getDisplayName node)
                     <*> G.getScopeId node
                     <*> G.getIsGeneric node
                     <*> (L.mapElements readEnumerant =<< G.getEnumerants enum)
-            G.Node_const const -> fmap Const $
+            G.Node_const_Reader_ const -> fmap Const $
                 ConstNode
                     <$> G.getId node
                     <*> (textToString <$> G.getDisplayName node)
@@ -297,7 +297,7 @@ readSchema handle = do
                     <*> G.getIsGeneric node
                     <*> (readType nm =<< G.getType const)
                     <*> (readValue =<< G.getValue const)
-            G.Node_annotation ann -> fmap Annotation $
+            G.Node_annotation_Reader_ ann -> fmap Annotation $
                 AnnotationNode
                     <$> G.getId node
                     <*> (textToString <$> G.getDisplayName node)
@@ -339,69 +339,69 @@ readSchema handle = do
 
     readOrdinal ordinal =
         L.which ordinal >>= \case
-            G.Field_ordinal_NotInSchema _ -> fail "UNKOWN ORDINAL"
-            G.Field_ordinal_implicit ->
+            G.Field_ordinal_NotInSchema_Reader_ _ -> fail "UNKOWN ORDINAL"
+            G.Field_ordinal_implicit_Reader_ ->
                 return OrdImplicit
-            G.Field_ordinal_explicit val ->
+            G.Field_ordinal_explicit_Reader_ val ->
                 return $ OrdExplicit val
 
     readFieldKind nm field = L.which field >>= \case
-        G.Field_NotInSchema _ -> fail "UNKOWN FIELD KIND"
-        G.Field_slot slot ->
+        G.Field_NotInSchema_Reader_ _ -> fail "UNKOWN FIELD KIND"
+        G.Field_slot_Reader_ slot ->
             SlotField
                 <$> G.getOffset slot
                 <*> (readType nm =<< G.getType slot)
                 <*> (readValue =<< G.getDefaultValue slot)
                 <*> G.getHadExplicitDefault slot
-        G.Field_group group ->
+        G.Field_group_Reader_ group ->
             GroupField
                 <$> (lookupStructNode nm <$> G.getTypeId group)
 
     readType nm ty =
         L.which ty >>= \case
-            G.Type_NotInSchema _ -> fail "UNKOWN TYPE"
-            G.Type_void -> return TyVoid
-            G.Type_bool -> return TyBool
-            G.Type_int8 -> return TyInt8
-            G.Type_int16 -> return TyInt16
-            G.Type_int32 -> return TyInt32
-            G.Type_int64 -> return TyInt64
-            G.Type_uint8 -> return TyUInt8
-            G.Type_uint16 -> return TyUInt16
-            G.Type_uint32 -> return TyUInt32
-            G.Type_uint64 -> return TyUInt64
-            G.Type_float32 -> return TyFloat32
-            G.Type_float64 -> return TyFloat64
-            G.Type_text -> return TyText
-            G.Type_data -> return TyData
-            G.Type_list list -> TyList <$> (readType nm =<< G.getElementType list)
-            G.Type_enum enum -> TyEnum <$> (lookupEnumNode nm <$> G.getTypeId enum) <*> return Brand
-            G.Type_struct struct -> TyStruct <$> (lookupStructNode nm <$> G.getTypeId struct) <*> return Brand
-            G.Type_interface interface -> TyInterface <$> (lookupInterfaceNode nm <$> G.getTypeId interface) <*> return Brand
-            G.Type_anyPointer anyPointer -> TyAnyPointer <$> return AnyPointer
+            G.Type_NotInSchema_Reader_ _ -> fail "UNKOWN TYPE"
+            G.Type_void_Reader_ -> return TyVoid
+            G.Type_bool_Reader_ -> return TyBool
+            G.Type_int8_Reader_ -> return TyInt8
+            G.Type_int16_Reader_ -> return TyInt16
+            G.Type_int32_Reader_ -> return TyInt32
+            G.Type_int64_Reader_ -> return TyInt64
+            G.Type_uint8_Reader_ -> return TyUInt8
+            G.Type_uint16_Reader_ -> return TyUInt16
+            G.Type_uint32_Reader_ -> return TyUInt32
+            G.Type_uint64_Reader_ -> return TyUInt64
+            G.Type_float32_Reader_ -> return TyFloat32
+            G.Type_float64_Reader_ -> return TyFloat64
+            G.Type_text_Reader_ -> return TyText
+            G.Type_data_Reader_ -> return TyData
+            G.Type_list_Reader_ list -> TyList <$> (readType nm =<< G.getElementType list)
+            G.Type_enum_Reader_ enum -> TyEnum <$> (lookupEnumNode nm <$> G.getTypeId enum) <*> return Brand
+            G.Type_struct_Reader_ struct -> TyStruct <$> (lookupStructNode nm <$> G.getTypeId struct) <*> return Brand
+            G.Type_interface_Reader_ interface -> TyInterface <$> (lookupInterfaceNode nm <$> G.getTypeId interface) <*> return Brand
+            G.Type_anyPointer_Reader_ anyPointer -> TyAnyPointer <$> return AnyPointer
 
     readValue v =
         L.which v >>= \case
-            G.Value_NotInSchema _ -> fail "UNKOWN VALUE"
-            G.Value_void -> return ValVoid
-            G.Value_bool val -> return $ ValBool val
-            G.Value_int8 val -> return $ ValInt8 val
-            G.Value_int16 val -> return $ ValInt16 val
-            G.Value_int32 val -> return $ ValInt32 val
-            G.Value_int64 val -> return $ ValInt64 val
-            G.Value_uint8 val -> return $ ValUInt8 val
-            G.Value_uint16 val -> return $ ValUInt16 val
-            G.Value_uint32 val -> return $ ValUInt32 val
-            G.Value_uint64 val -> return $ ValUInt64 val
-            G.Value_float32 val -> return $ ValFloat32 val
-            G.Value_float64 val -> return $ ValFloat64 val
-            G.Value_text val -> return $ ValText (textToString val)
-            G.Value_data val -> return $ ValData "" -- XXX
-            G.Value_list val -> return $ ValList AnyPointer
-            G.Value_enum val -> return $ ValEnum val
-            G.Value_struct val -> return $ ValStruct AnyPointer
-            G.Value_interface -> return $ ValInterface
-            G.Value_anyPointer val -> return $ ValAnyPointer AnyPointer
+            G.Value_NotInSchema_Reader_ _ -> fail "UNKOWN VALUE"
+            G.Value_void_Reader_ -> return ValVoid
+            G.Value_bool_Reader_ val -> return $ ValBool val
+            G.Value_int8_Reader_ val -> return $ ValInt8 val
+            G.Value_int16_Reader_ val -> return $ ValInt16 val
+            G.Value_int32_Reader_ val -> return $ ValInt32 val
+            G.Value_int64_Reader_ val -> return $ ValInt64 val
+            G.Value_uint8_Reader_ val -> return $ ValUInt8 val
+            G.Value_uint16_Reader_ val -> return $ ValUInt16 val
+            G.Value_uint32_Reader_ val -> return $ ValUInt32 val
+            G.Value_uint64_Reader_ val -> return $ ValUInt64 val
+            G.Value_float32_Reader_ val -> return $ ValFloat32 val
+            G.Value_float64_Reader_ val -> return $ ValFloat64 val
+            G.Value_text_Reader_ val -> return $ ValText (textToString val)
+            G.Value_data_Reader_ val -> return $ ValData "" -- XXX
+            G.Value_list_Reader_ val -> return $ ValList AnyPointer
+            G.Value_enum_Reader_ val -> return $ ValEnum val
+            G.Value_struct_Reader_ val -> return $ ValStruct AnyPointer
+            G.Value_interface_Reader_ -> return $ ValInterface
+            G.Value_anyPointer_Reader_ val -> return $ ValAnyPointer AnyPointer
 
     lookupNode :: NodeMap -> Id -> Node
     lookupNode nm id = Map.findWithDefault (error $ "Failed to find node with id "<>show id) id nm
