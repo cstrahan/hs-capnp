@@ -21,17 +21,25 @@ emptyString :: BS.ByteString
 emptyString = unsafePerformIO $ BS.unsafePackAddressLen 0 "\NULL"#
 
 data Annotation_Reader = Annotation_Reader L.StructReader
+data Annotation_Builder = Annotation_Builder L.StructBuilder
 
 instance L.FromStructReader Annotation_Reader where
     fromStructReader = return . Annotation_Reader
 
 instance L.ListElement Annotation_Reader where
     elementSize _ = L.SzInlineComposite
+
+instance L.ListElement Annotation_Builder where
+    elementSize _ = L.SzInlineComposite
+
+instance L.ListReaderElement Annotation_Reader where
     getReaderElement list index =
         fmap Annotation_Reader $ L.getReaderElement (coerce list) index
+
+instance L.ListBuilderElement Annotation_Builder where
     getBuilderElement list index =
-        fmap Annotation_Reader $ L.getBuilderElement (coerce list) index
-    setBuilderElement list index (Annotation_Reader struct) =
+        fmap Annotation_Builder $ L.getBuilderElement (coerce list) index
+    setBuilderElement list index (Annotation_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
 instance HasId Annotation_Reader where
@@ -48,17 +56,25 @@ instance HasBrand Annotation_Reader where
 
 
 data Brand_Reader = Brand_Reader L.StructReader
+data Brand_Builder = Brand_Builder L.StructBuilder
 
 instance L.FromStructReader Brand_Reader where
     fromStructReader = return . Brand_Reader
 
 instance L.ListElement Brand_Reader where
     elementSize _ = L.SzInlineComposite
+
+instance L.ListElement Brand_Builder where
+    elementSize _ = L.SzInlineComposite
+
+instance L.ListReaderElement Brand_Reader where
     getReaderElement list index =
         fmap Brand_Reader $ L.getReaderElement (coerce list) index
+
+instance L.ListBuilderElement Brand_Builder where
     getBuilderElement list index =
-        fmap Brand_Reader $ L.getBuilderElement (coerce list) index
-    setBuilderElement list index (Brand_Reader struct) =
+        fmap Brand_Builder $ L.getBuilderElement (coerce list) index
+    setBuilderElement list index (Brand_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
 instance HasScopes Brand_Reader where
@@ -67,17 +83,25 @@ instance HasScopes Brand_Reader where
 
 
 data Brand_Binding_Reader = Brand_Binding_Reader L.StructReader
+data Brand_Binding_Builder = Brand_Binding_Builder L.StructBuilder
 
 instance L.FromStructReader Brand_Binding_Reader where
     fromStructReader = return . Brand_Binding_Reader
 
 instance L.ListElement Brand_Binding_Reader where
     elementSize _ = L.SzInlineComposite
+
+instance L.ListElement Brand_Binding_Builder where
+    elementSize _ = L.SzInlineComposite
+
+instance L.ListReaderElement Brand_Binding_Reader where
     getReaderElement list index =
         fmap Brand_Binding_Reader $ L.getReaderElement (coerce list) index
+
+instance L.ListBuilderElement Brand_Binding_Builder where
     getBuilderElement list index =
-        fmap Brand_Binding_Reader $ L.getBuilderElement (coerce list) index
-    setBuilderElement list index (Brand_Binding_Reader struct) =
+        fmap Brand_Binding_Builder $ L.getBuilderElement (coerce list) index
+    setBuilderElement list index (Brand_Binding_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
 data Brand_Binding_Which_Reader
@@ -96,17 +120,25 @@ instance L.Union Brand_Binding_Reader where
 
 
 data Brand_Scope_Reader = Brand_Scope_Reader L.StructReader
+data Brand_Scope_Builder = Brand_Scope_Builder L.StructBuilder
 
 instance L.FromStructReader Brand_Scope_Reader where
     fromStructReader = return . Brand_Scope_Reader
 
 instance L.ListElement Brand_Scope_Reader where
     elementSize _ = L.SzInlineComposite
+
+instance L.ListElement Brand_Scope_Builder where
+    elementSize _ = L.SzInlineComposite
+
+instance L.ListReaderElement Brand_Scope_Reader where
     getReaderElement list index =
         fmap Brand_Scope_Reader $ L.getReaderElement (coerce list) index
+
+instance L.ListBuilderElement Brand_Scope_Builder where
     getBuilderElement list index =
-        fmap Brand_Scope_Reader $ L.getBuilderElement (coerce list) index
-    setBuilderElement list index (Brand_Scope_Reader struct) =
+        fmap Brand_Scope_Builder $ L.getBuilderElement (coerce list) index
+    setBuilderElement list index (Brand_Scope_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
 instance HasScopeId Brand_Scope_Reader where
@@ -129,17 +161,25 @@ instance L.Union Brand_Scope_Reader where
 
 
 data CodeGeneratorRequest_Reader = CodeGeneratorRequest_Reader L.StructReader
+data CodeGeneratorRequest_Builder = CodeGeneratorRequest_Builder L.StructBuilder
 
 instance L.FromStructReader CodeGeneratorRequest_Reader where
     fromStructReader = return . CodeGeneratorRequest_Reader
 
 instance L.ListElement CodeGeneratorRequest_Reader where
     elementSize _ = L.SzInlineComposite
+
+instance L.ListElement CodeGeneratorRequest_Builder where
+    elementSize _ = L.SzInlineComposite
+
+instance L.ListReaderElement CodeGeneratorRequest_Reader where
     getReaderElement list index =
         fmap CodeGeneratorRequest_Reader $ L.getReaderElement (coerce list) index
+
+instance L.ListBuilderElement CodeGeneratorRequest_Builder where
     getBuilderElement list index =
-        fmap CodeGeneratorRequest_Reader $ L.getBuilderElement (coerce list) index
-    setBuilderElement list index (CodeGeneratorRequest_Reader struct) =
+        fmap CodeGeneratorRequest_Builder $ L.getBuilderElement (coerce list) index
+    setBuilderElement list index (CodeGeneratorRequest_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
 instance HasNodes CodeGeneratorRequest_Reader where
@@ -152,17 +192,25 @@ instance HasRequestedFiles CodeGeneratorRequest_Reader where
 
 
 data CodeGeneratorRequest_RequestedFile_Reader = CodeGeneratorRequest_RequestedFile_Reader L.StructReader
+data CodeGeneratorRequest_RequestedFile_Builder = CodeGeneratorRequest_RequestedFile_Builder L.StructBuilder
 
 instance L.FromStructReader CodeGeneratorRequest_RequestedFile_Reader where
     fromStructReader = return . CodeGeneratorRequest_RequestedFile_Reader
 
 instance L.ListElement CodeGeneratorRequest_RequestedFile_Reader where
     elementSize _ = L.SzInlineComposite
+
+instance L.ListElement CodeGeneratorRequest_RequestedFile_Builder where
+    elementSize _ = L.SzInlineComposite
+
+instance L.ListReaderElement CodeGeneratorRequest_RequestedFile_Reader where
     getReaderElement list index =
         fmap CodeGeneratorRequest_RequestedFile_Reader $ L.getReaderElement (coerce list) index
+
+instance L.ListBuilderElement CodeGeneratorRequest_RequestedFile_Builder where
     getBuilderElement list index =
-        fmap CodeGeneratorRequest_RequestedFile_Reader $ L.getBuilderElement (coerce list) index
-    setBuilderElement list index (CodeGeneratorRequest_RequestedFile_Reader struct) =
+        fmap CodeGeneratorRequest_RequestedFile_Builder $ L.getBuilderElement (coerce list) index
+    setBuilderElement list index (CodeGeneratorRequest_RequestedFile_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
 instance HasId CodeGeneratorRequest_RequestedFile_Reader where
@@ -179,17 +227,25 @@ instance HasImports CodeGeneratorRequest_RequestedFile_Reader where
 
 
 data CodeGeneratorRequest_RequestedFile_Import_Reader = CodeGeneratorRequest_RequestedFile_Import_Reader L.StructReader
+data CodeGeneratorRequest_RequestedFile_Import_Builder = CodeGeneratorRequest_RequestedFile_Import_Builder L.StructBuilder
 
 instance L.FromStructReader CodeGeneratorRequest_RequestedFile_Import_Reader where
     fromStructReader = return . CodeGeneratorRequest_RequestedFile_Import_Reader
 
 instance L.ListElement CodeGeneratorRequest_RequestedFile_Import_Reader where
     elementSize _ = L.SzInlineComposite
+
+instance L.ListElement CodeGeneratorRequest_RequestedFile_Import_Builder where
+    elementSize _ = L.SzInlineComposite
+
+instance L.ListReaderElement CodeGeneratorRequest_RequestedFile_Import_Reader where
     getReaderElement list index =
         fmap CodeGeneratorRequest_RequestedFile_Import_Reader $ L.getReaderElement (coerce list) index
+
+instance L.ListBuilderElement CodeGeneratorRequest_RequestedFile_Import_Builder where
     getBuilderElement list index =
-        fmap CodeGeneratorRequest_RequestedFile_Import_Reader $ L.getBuilderElement (coerce list) index
-    setBuilderElement list index (CodeGeneratorRequest_RequestedFile_Import_Reader struct) =
+        fmap CodeGeneratorRequest_RequestedFile_Import_Builder $ L.getBuilderElement (coerce list) index
+    setBuilderElement list index (CodeGeneratorRequest_RequestedFile_Import_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
 instance HasId CodeGeneratorRequest_RequestedFile_Import_Reader where
@@ -202,17 +258,25 @@ instance HasName CodeGeneratorRequest_RequestedFile_Import_Reader where
 
 
 data Enumerant_Reader = Enumerant_Reader L.StructReader
+data Enumerant_Builder = Enumerant_Builder L.StructBuilder
 
 instance L.FromStructReader Enumerant_Reader where
     fromStructReader = return . Enumerant_Reader
 
 instance L.ListElement Enumerant_Reader where
     elementSize _ = L.SzInlineComposite
+
+instance L.ListElement Enumerant_Builder where
+    elementSize _ = L.SzInlineComposite
+
+instance L.ListReaderElement Enumerant_Reader where
     getReaderElement list index =
         fmap Enumerant_Reader $ L.getReaderElement (coerce list) index
+
+instance L.ListBuilderElement Enumerant_Builder where
     getBuilderElement list index =
-        fmap Enumerant_Reader $ L.getBuilderElement (coerce list) index
-    setBuilderElement list index (Enumerant_Reader struct) =
+        fmap Enumerant_Builder $ L.getBuilderElement (coerce list) index
+    setBuilderElement list index (Enumerant_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
 instance HasName Enumerant_Reader where
@@ -229,17 +293,25 @@ instance HasAnnotations Enumerant_Reader where
 
 
 data Field_Reader = Field_Reader L.StructReader
+data Field_Builder = Field_Builder L.StructBuilder
 
 instance L.FromStructReader Field_Reader where
     fromStructReader = return . Field_Reader
 
 instance L.ListElement Field_Reader where
     elementSize _ = L.SzInlineComposite
+
+instance L.ListElement Field_Builder where
+    elementSize _ = L.SzInlineComposite
+
+instance L.ListReaderElement Field_Reader where
     getReaderElement list index =
         fmap Field_Reader $ L.getReaderElement (coerce list) index
+
+instance L.ListBuilderElement Field_Builder where
     getBuilderElement list index =
-        fmap Field_Reader $ L.getBuilderElement (coerce list) index
-    setBuilderElement list index (Field_Reader struct) =
+        fmap Field_Builder $ L.getBuilderElement (coerce list) index
+    setBuilderElement list index (Field_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
 instance HasName Field_Reader where
@@ -278,6 +350,7 @@ instance L.Union Field_Reader where
 
 
 data Field_group_Reader = Field_group_Reader L.StructReader
+data Field_group_Builder = Field_group_Builder L.StructBuilder
 
 instance HasTypeId Field_group_Reader where
     type TypeIdTy Field_group_Reader = Word64
@@ -285,6 +358,7 @@ instance HasTypeId Field_group_Reader where
 
 
 data Field_ordinal_Reader = Field_ordinal_Reader L.StructReader
+data Field_ordinal_Builder = Field_ordinal_Builder L.StructBuilder
 
 data Field_ordinal_Which_Reader
   = Field_ordinal_NotInSchema Word16
@@ -302,6 +376,7 @@ instance L.Union Field_ordinal_Reader where
 
 
 data Field_slot_Reader = Field_slot_Reader L.StructReader
+data Field_slot_Builder = Field_slot_Builder L.StructBuilder
 
 instance HasOffset Field_slot_Reader where
     type OffsetTy Field_slot_Reader = Word32
@@ -321,17 +396,25 @@ instance HasHadExplicitDefault Field_slot_Reader where
 
 
 data Method_Reader = Method_Reader L.StructReader
+data Method_Builder = Method_Builder L.StructBuilder
 
 instance L.FromStructReader Method_Reader where
     fromStructReader = return . Method_Reader
 
 instance L.ListElement Method_Reader where
     elementSize _ = L.SzInlineComposite
+
+instance L.ListElement Method_Builder where
+    elementSize _ = L.SzInlineComposite
+
+instance L.ListReaderElement Method_Reader where
     getReaderElement list index =
         fmap Method_Reader $ L.getReaderElement (coerce list) index
+
+instance L.ListBuilderElement Method_Builder where
     getBuilderElement list index =
-        fmap Method_Reader $ L.getBuilderElement (coerce list) index
-    setBuilderElement list index (Method_Reader struct) =
+        fmap Method_Builder $ L.getBuilderElement (coerce list) index
+    setBuilderElement list index (Method_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
 instance HasName Method_Reader where
@@ -368,17 +451,25 @@ instance HasImplicitParameters Method_Reader where
 
 
 data Node_Reader = Node_Reader L.StructReader
+data Node_Builder = Node_Builder L.StructBuilder
 
 instance L.FromStructReader Node_Reader where
     fromStructReader = return . Node_Reader
 
 instance L.ListElement Node_Reader where
     elementSize _ = L.SzInlineComposite
+
+instance L.ListElement Node_Builder where
+    elementSize _ = L.SzInlineComposite
+
+instance L.ListReaderElement Node_Reader where
     getReaderElement list index =
         fmap Node_Reader $ L.getReaderElement (coerce list) index
+
+instance L.ListBuilderElement Node_Builder where
     getBuilderElement list index =
-        fmap Node_Reader $ L.getBuilderElement (coerce list) index
-    setBuilderElement list index (Node_Reader struct) =
+        fmap Node_Builder $ L.getBuilderElement (coerce list) index
+    setBuilderElement list index (Node_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
 instance HasId Node_Reader where
@@ -437,17 +528,25 @@ instance L.Union Node_Reader where
 
 
 data Node_NestedNode_Reader = Node_NestedNode_Reader L.StructReader
+data Node_NestedNode_Builder = Node_NestedNode_Builder L.StructBuilder
 
 instance L.FromStructReader Node_NestedNode_Reader where
     fromStructReader = return . Node_NestedNode_Reader
 
 instance L.ListElement Node_NestedNode_Reader where
     elementSize _ = L.SzInlineComposite
+
+instance L.ListElement Node_NestedNode_Builder where
+    elementSize _ = L.SzInlineComposite
+
+instance L.ListReaderElement Node_NestedNode_Reader where
     getReaderElement list index =
         fmap Node_NestedNode_Reader $ L.getReaderElement (coerce list) index
+
+instance L.ListBuilderElement Node_NestedNode_Builder where
     getBuilderElement list index =
-        fmap Node_NestedNode_Reader $ L.getBuilderElement (coerce list) index
-    setBuilderElement list index (Node_NestedNode_Reader struct) =
+        fmap Node_NestedNode_Builder $ L.getBuilderElement (coerce list) index
+    setBuilderElement list index (Node_NestedNode_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
 instance HasName Node_NestedNode_Reader where
@@ -460,17 +559,25 @@ instance HasId Node_NestedNode_Reader where
 
 
 data Node_Parameter_Reader = Node_Parameter_Reader L.StructReader
+data Node_Parameter_Builder = Node_Parameter_Builder L.StructBuilder
 
 instance L.FromStructReader Node_Parameter_Reader where
     fromStructReader = return . Node_Parameter_Reader
 
 instance L.ListElement Node_Parameter_Reader where
     elementSize _ = L.SzInlineComposite
+
+instance L.ListElement Node_Parameter_Builder where
+    elementSize _ = L.SzInlineComposite
+
+instance L.ListReaderElement Node_Parameter_Reader where
     getReaderElement list index =
         fmap Node_Parameter_Reader $ L.getReaderElement (coerce list) index
+
+instance L.ListBuilderElement Node_Parameter_Builder where
     getBuilderElement list index =
-        fmap Node_Parameter_Reader $ L.getBuilderElement (coerce list) index
-    setBuilderElement list index (Node_Parameter_Reader struct) =
+        fmap Node_Parameter_Builder $ L.getBuilderElement (coerce list) index
+    setBuilderElement list index (Node_Parameter_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
 instance HasName Node_Parameter_Reader where
@@ -479,6 +586,7 @@ instance HasName Node_Parameter_Reader where
 
 
 data Node_annotation_Reader = Node_annotation_Reader L.StructReader
+data Node_annotation_Builder = Node_annotation_Builder L.StructBuilder
 
 instance HasType Node_annotation_Reader where
     type TypeTy Node_annotation_Reader = Type_Reader
@@ -534,6 +642,7 @@ instance HasTargetsAnnotation Node_annotation_Reader where
 
 
 data Node_const_Reader = Node_const_Reader L.StructReader
+data Node_const_Builder = Node_const_Builder L.StructBuilder
 
 instance HasType Node_const_Reader where
     type TypeTy Node_const_Reader = Type_Reader
@@ -545,6 +654,7 @@ instance HasValue Node_const_Reader where
 
 
 data Node_enum_Reader = Node_enum_Reader L.StructReader
+data Node_enum_Builder = Node_enum_Builder L.StructBuilder
 
 instance HasEnumerants Node_enum_Reader where
     type EnumerantsTy Node_enum_Reader = (L.ListReader Enumerant_Reader)
@@ -552,6 +662,7 @@ instance HasEnumerants Node_enum_Reader where
 
 
 data Node_interface_Reader = Node_interface_Reader L.StructReader
+data Node_interface_Builder = Node_interface_Builder L.StructBuilder
 
 instance HasMethods Node_interface_Reader where
     type MethodsTy Node_interface_Reader = (L.ListReader Method_Reader)
@@ -563,6 +674,7 @@ instance HasSuperclasses Node_interface_Reader where
 
 
 data Node_struct_Reader = Node_struct_Reader L.StructReader
+data Node_struct_Builder = Node_struct_Builder L.StructBuilder
 
 instance HasDataWordCount Node_struct_Reader where
     type DataWordCountTy Node_struct_Reader = Word16
@@ -594,17 +706,25 @@ instance HasFields Node_struct_Reader where
 
 
 data Superclass_Reader = Superclass_Reader L.StructReader
+data Superclass_Builder = Superclass_Builder L.StructBuilder
 
 instance L.FromStructReader Superclass_Reader where
     fromStructReader = return . Superclass_Reader
 
 instance L.ListElement Superclass_Reader where
     elementSize _ = L.SzInlineComposite
+
+instance L.ListElement Superclass_Builder where
+    elementSize _ = L.SzInlineComposite
+
+instance L.ListReaderElement Superclass_Reader where
     getReaderElement list index =
         fmap Superclass_Reader $ L.getReaderElement (coerce list) index
+
+instance L.ListBuilderElement Superclass_Builder where
     getBuilderElement list index =
-        fmap Superclass_Reader $ L.getBuilderElement (coerce list) index
-    setBuilderElement list index (Superclass_Reader struct) =
+        fmap Superclass_Builder $ L.getBuilderElement (coerce list) index
+    setBuilderElement list index (Superclass_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
 instance HasId Superclass_Reader where
@@ -617,17 +737,25 @@ instance HasBrand Superclass_Reader where
 
 
 data Type_Reader = Type_Reader L.StructReader
+data Type_Builder = Type_Builder L.StructBuilder
 
 instance L.FromStructReader Type_Reader where
     fromStructReader = return . Type_Reader
 
 instance L.ListElement Type_Reader where
     elementSize _ = L.SzInlineComposite
+
+instance L.ListElement Type_Builder where
+    elementSize _ = L.SzInlineComposite
+
+instance L.ListReaderElement Type_Reader where
     getReaderElement list index =
         fmap Type_Reader $ L.getReaderElement (coerce list) index
+
+instance L.ListBuilderElement Type_Builder where
     getBuilderElement list index =
-        fmap Type_Reader $ L.getBuilderElement (coerce list) index
-    setBuilderElement list index (Type_Reader struct) =
+        fmap Type_Builder $ L.getBuilderElement (coerce list) index
+    setBuilderElement list index (Type_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
 data Type_Which_Reader
@@ -680,6 +808,7 @@ instance L.Union Type_Reader where
 
 
 data Type_anyPointer_Reader = Type_anyPointer_Reader L.StructReader
+data Type_anyPointer_Builder = Type_anyPointer_Builder L.StructBuilder
 
 data Type_anyPointer_Which_Reader
   = Type_anyPointer_NotInSchema Word16
@@ -699,6 +828,7 @@ instance L.Union Type_anyPointer_Reader where
 
 
 data Type_anyPointer_implicitMethodParameter_Reader = Type_anyPointer_implicitMethodParameter_Reader L.StructReader
+data Type_anyPointer_implicitMethodParameter_Builder = Type_anyPointer_implicitMethodParameter_Builder L.StructBuilder
 
 instance HasParameterIndex Type_anyPointer_implicitMethodParameter_Reader where
     type ParameterIndexTy Type_anyPointer_implicitMethodParameter_Reader = Word16
@@ -706,6 +836,7 @@ instance HasParameterIndex Type_anyPointer_implicitMethodParameter_Reader where
 
 
 data Type_anyPointer_parameter_Reader = Type_anyPointer_parameter_Reader L.StructReader
+data Type_anyPointer_parameter_Builder = Type_anyPointer_parameter_Builder L.StructBuilder
 
 instance HasScopeId Type_anyPointer_parameter_Reader where
     type ScopeIdTy Type_anyPointer_parameter_Reader = Word64
@@ -717,6 +848,7 @@ instance HasParameterIndex Type_anyPointer_parameter_Reader where
 
 
 data Type_enum_Reader = Type_enum_Reader L.StructReader
+data Type_enum_Builder = Type_enum_Builder L.StructBuilder
 
 instance HasTypeId Type_enum_Reader where
     type TypeIdTy Type_enum_Reader = Word64
@@ -728,6 +860,7 @@ instance HasBrand Type_enum_Reader where
 
 
 data Type_interface_Reader = Type_interface_Reader L.StructReader
+data Type_interface_Builder = Type_interface_Builder L.StructBuilder
 
 instance HasTypeId Type_interface_Reader where
     type TypeIdTy Type_interface_Reader = Word64
@@ -739,6 +872,7 @@ instance HasBrand Type_interface_Reader where
 
 
 data Type_list_Reader = Type_list_Reader L.StructReader
+data Type_list_Builder = Type_list_Builder L.StructBuilder
 
 instance HasElementType Type_list_Reader where
     type ElementTypeTy Type_list_Reader = Type_Reader
@@ -746,6 +880,7 @@ instance HasElementType Type_list_Reader where
 
 
 data Type_struct_Reader = Type_struct_Reader L.StructReader
+data Type_struct_Builder = Type_struct_Builder L.StructBuilder
 
 instance HasTypeId Type_struct_Reader where
     type TypeIdTy Type_struct_Reader = Word64
@@ -757,17 +892,25 @@ instance HasBrand Type_struct_Reader where
 
 
 data Value_Reader = Value_Reader L.StructReader
+data Value_Builder = Value_Builder L.StructBuilder
 
 instance L.FromStructReader Value_Reader where
     fromStructReader = return . Value_Reader
 
 instance L.ListElement Value_Reader where
     elementSize _ = L.SzInlineComposite
+
+instance L.ListElement Value_Builder where
+    elementSize _ = L.SzInlineComposite
+
+instance L.ListReaderElement Value_Reader where
     getReaderElement list index =
         fmap Value_Reader $ L.getReaderElement (coerce list) index
+
+instance L.ListBuilderElement Value_Builder where
     getBuilderElement list index =
-        fmap Value_Reader $ L.getBuilderElement (coerce list) index
-    setBuilderElement list index (Value_Reader struct) =
+        fmap Value_Builder $ L.getBuilderElement (coerce list) index
+    setBuilderElement list index (Value_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
 data Value_Which_Reader
@@ -859,14 +1002,14 @@ instance Enum ElementSize where
 instance Eq ElementSize where
     x == y = fromEnum x == fromEnum y
 
-instance L.ListElement ElementSize where
-    elementSize _ = L.SzTwoBytes
-    getReaderElement list index =
-        fmap (toEnum . fromIntegral) (L.getReaderElement (coerce list) index :: IO Word16)
-    getBuilderElement list index =
-        fmap (toEnum . fromIntegral) (L.getBuilderElement (coerce list) index :: IO Word16)
-    setBuilderElement list index val =
-        L.setBuilderElement (coerce list) index (fromIntegral . fromEnum $ val :: Word16)
+--instance L.ListElement ElementSize where
+--    elementSize _ = L.SzTwoBytes
+--    getReaderElement list index =
+--        fmap (toEnum . fromIntegral) (L.getReaderElement (coerce list) index :: IO Word16)
+--    getBuilderElement list index =
+--        fmap (toEnum . fromIntegral) (L.getBuilderElement (coerce list) index :: IO Word16)
+--    setBuilderElement list index val =
+--        L.setBuilderElement (coerce list) index (fromIntegral . fromEnum $ val :: Word16)
 
 
 class HasAnnotations a where

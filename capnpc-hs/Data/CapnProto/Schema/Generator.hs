@@ -317,15 +317,23 @@ mkData node =
               , ""
               , "instance L.ListElement "<>readerName<>" where"
               , "    elementSize _ = L.SzInlineComposite"
+              , ""
+              , "instance L.ListElement "<>builderName<>" where"
+              , "    elementSize _ = L.SzInlineComposite"
+              , ""
+              , "instance L.ListReaderElement "<>readerName<>" where"
               , "    getReaderElement list index ="
               , "        fmap "<>readerName<>" $ L.getReaderElement (coerce list) index"
+              , ""
+              , "instance L.ListBuilderElement "<>builderName<>" where"
               , "    getBuilderElement list index ="
-              , "        fmap "<>readerName<>" $ L.getBuilderElement (coerce list) index"
-              , "    setBuilderElement list index ("<>readerName<>" struct) ="
+              , "        fmap "<>builderName<>" $ L.getBuilderElement (coerce list) index"
+              , "    setBuilderElement list index ("<>builderName<>" struct) ="
               , "        L.setBuilderElement (coerce list) index struct"
               ]
   where
     readerName = mkStructName node<>"_Reader"
+    builderName = mkStructName node<>"_Builder"
     isGroup = structNodeIsGroup node
 
 mkClass :: String -> String

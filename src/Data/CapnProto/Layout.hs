@@ -1623,48 +1623,11 @@ getBuilderPointerElement builder index =
     ptr = listBuilderData builder `plusPtr` offset
     offset = fromIntegral index * (fromIntegral (listBuilderStep builder `div` fromIntegral bitsPerByte))
 
--- TODO:
--- * assert index < len
--- * checked/unchecked variants
 class ListElement a where
     elementSize :: a -> ElementSize
 
-    getReaderElement :: ListReader a -> ElementCount -> IO a
-    default getReaderElement :: (Storable a) => ListReader a -> ElementCount -> IO a
-    getReaderElement reader index =
-        peek ptr
-      where
-        offset = index * fromIntegral (listReaderStep reader) `div` fromIntegral bitsPerByte
-        ptr = listReaderData reader `plusPtr` fromIntegral offset
-
-    getBuilderElement :: ListBuilder a -> ElementCount -> IO a
-    getBuilderElement = undefined
-
-    setBuilderElement :: ListBuilder a -> ElementCount -> a -> IO ()
-    default setBuilderElement :: (Storable a) => ListBuilder a -> ElementCount -> a -> IO ()
-    setBuilderElement builder index =
-        poke ptr
-      where
-        offset = index * fromIntegral (listBuilderStep builder) `div` fromIntegral bitsPerByte
-        ptr = listBuilderData builder `plusPtr` fromIntegral offset
-
 instance ListElement Bool where
     elementSize _ = SzBit
-    getReaderElement reader index = do
-        val <- peek ptr
-        return $ val .&. (1 `shiftL` fromIntegral bitNum) /= 0
-      where
-        bindex = fromIntegral index * fromIntegral (listReaderStep reader) :: Word64
-        (offset, bitNum) = bindex `quotRem` fromIntegral bitsPerByte
-        ptr = listReaderData reader `plusPtr` fromIntegral offset :: Ptr Word8
-
-    setBuilderElement builder index value = do
-        byte <- peek ptr
-        poke ptr $ byte .|. (1 `shiftL` fromIntegral bitNum)
-      where
-        bindex = fromIntegral index * fromIntegral (listBuilderStep builder) :: Word64
-        (offset, bitNum) = bindex `quotRem` fromIntegral bitsPerByte
-        ptr = listBuilderData builder `plusPtr` fromIntegral offset :: Ptr Word8
 
 instance ListElement Word8 where
     elementSize _ = SzByte
@@ -1696,45 +1659,151 @@ instance ListElement Float where
 instance ListElement Double where
     elementSize _ = SzEightBytes
 
-instance ListElement StructReader where
-    elementSize _ = SzInlineComposite
-    getReaderElement reader index = return $ getReaderStructElement reader (fromIntegral index)
-
-    setBuilderElement builder index value =
-        void $ setStructPointer (pointerBuilderSegment ptrBuilder) (pointerBuilderData ptrBuilder) value
-      where
-        ptrBuilder = getBuilderPointerElement builder (fromIntegral index)
-
 instance ListElement TextReader where
     elementSize _ = SzPointer
+
+instance ListElement TextBuilder where
+    elementSize _ = SzPointer
+
+instance ListElement DataReader where
+    elementSize _ = SzPointer
+
+instance ListElement DataBuilder where
+    elementSize _ = SzPointer
+
+instance ListElement StructReader where
+    elementSize _ = SzInlineComposite
+
+instance ListElement StructBuilder where
+    elementSize _ = SzInlineComposite
+
+instance ListElement a => ListElement (ListReader a) where
+    elementSize _ = SzPointer
+
+instance ListElement a => ListElement (ListBuilder a) where
+    elementSize _ = SzPointer
+
+-- TODO:
+-- * assert index < len
+-- * checked/unchecked variants
+class ListElement a => ListReaderElement a where
+    getReaderElement :: ListReader a -> ElementCount -> IO a
+    default getReaderElement :: (Storable a) => ListReader a -> ElementCount -> IO a
+    getReaderElement reader index =
+        peek ptr
+      where
+        offset = index * fromIntegral (listReaderStep reader) `div` fromIntegral bitsPerByte
+        ptr = listReaderData reader `plusPtr` fromIntegral offset
+
+instance ListReaderElement Bool where
+    getReaderElement reader index = do
+        val <- peek ptr
+        return $ val .&. (1 `shiftL` fromIntegral bitNum) /= 0
+      where
+        bindex = fromIntegral index * fromIntegral (listReaderStep reader) :: Word64
+        (offset, bitNum) = bindex `quotRem` fromIntegral bitsPerByte
+        ptr = listReaderData reader `plusPtr` fromIntegral offset :: Ptr Word8
+
+instance ListReaderElement Word8 where
+
+instance ListReaderElement Word16 where
+
+instance ListReaderElement Word32 where
+
+instance ListReaderElement Word64 where
+
+instance ListReaderElement Int8 where
+
+instance ListReaderElement Int16 where
+
+instance ListReaderElement Int32 where
+
+instance ListReaderElement Int64 where
+
+instance ListReaderElement Float where
+
+instance ListReaderElement Double where
+
+instance ListReaderElement StructReader where
+    getReaderElement reader index = return $ getReaderStructElement reader (fromIntegral index)
+
+instance ListReaderElement TextReader where
     getReaderElement reader index = getReaderText ptrReader "\NULL"
       where
         ptrReader = getReaderPointerElement reader (fromIntegral index)
 
-    setBuilderElement builder index (TextReader value) =
-        void $ setTextPointer (pointerBuilderData ptrBuilder) (pointerBuilderSegment ptrBuilder) value
-      where
-        ptrBuilder = getBuilderPointerElement builder (fromIntegral index)
-
-instance ListElement DataReader where
-    elementSize _ = SzPointer
+instance ListReaderElement DataReader where
     getReaderElement reader index = getReaderData ptrReader ""
       where
         ptrReader = getReaderPointerElement reader (fromIntegral index)
 
-    setBuilderElement builder index (DataReader value) =
-        void $ setDataPointer (pointerBuilderData ptrBuilder) (pointerBuilderSegment ptrBuilder) value
-      where
-        ptrBuilder = getBuilderPointerElement builder (fromIntegral index)
-
-instance (ListElement a) => ListElement (ListReader a) where
-    elementSize _ = SzPointer
+instance (ListReaderElement a) => ListReaderElement (ListReader a) where
     getReaderElement reader index = getReaderList ptrReader nullPtr
       where
         ptrReader = getReaderPointerElement reader (fromIntegral index)
 
+class ListElement a => ListBuilderElement a where
+    getBuilderElement :: ListBuilder a -> ElementCount -> IO a
+    getBuilderElement = undefined
+
+    setBuilderElement :: ListBuilder a -> ElementCount -> a -> IO ()
+    default setBuilderElement :: (Storable a) => ListBuilder a -> ElementCount -> a -> IO ()
+    setBuilderElement builder index =
+        poke ptr
+      where
+        offset = index * fromIntegral (listBuilderStep builder) `div` fromIntegral bitsPerByte
+        ptr = listBuilderData builder `plusPtr` fromIntegral offset
+
+instance ListBuilderElement Bool where
+    setBuilderElement builder index value = do
+        byte <- peek ptr
+        poke ptr $ byte .|. (1 `shiftL` fromIntegral bitNum)
+      where
+        bindex = fromIntegral index * fromIntegral (listBuilderStep builder) :: Word64
+        (offset, bitNum) = bindex `quotRem` fromIntegral bitsPerByte
+        ptr = listBuilderData builder `plusPtr` fromIntegral offset :: Ptr Word8
+
+instance ListBuilderElement Word8 where
+
+instance ListBuilderElement Word16 where
+
+instance ListBuilderElement Word32 where
+
+instance ListBuilderElement Word64 where
+
+instance ListBuilderElement Int8 where
+
+instance ListBuilderElement Int16 where
+
+instance ListBuilderElement Int32 where
+
+instance ListBuilderElement Int64 where
+
+instance ListBuilderElement Float where
+
+instance ListBuilderElement Double where
+
+instance ListBuilderElement StructBuilder where
     setBuilderElement builder index value =
-        void $ setListPointer (pointerBuilderSegment ptrBuilder) (pointerBuilderData ptrBuilder) value
+        void $ setStructPointer (pointerBuilderSegment ptrBuilder) (pointerBuilderData ptrBuilder) (asReader value)
+      where
+        ptrBuilder = getBuilderPointerElement builder (fromIntegral index)
+
+instance ListBuilderElement TextBuilder where
+    setBuilderElement builder index (TextBuilder value) =
+        void $ setTextPointer (pointerBuilderData ptrBuilder) (pointerBuilderSegment ptrBuilder) value
+      where
+        ptrBuilder = getBuilderPointerElement builder (fromIntegral index)
+
+instance ListBuilderElement DataBuilder where
+    setBuilderElement builder index (DataBuilder value) =
+        void $ setDataPointer (pointerBuilderData ptrBuilder) (pointerBuilderSegment ptrBuilder) value
+      where
+        ptrBuilder = getBuilderPointerElement builder (fromIntegral index)
+
+instance (ListBuilderElement a) => ListBuilderElement (ListBuilder a) where
+    setBuilderElement builder index value =
+        void $ setListPointer (pointerBuilderSegment ptrBuilder) (pointerBuilderData ptrBuilder) (asReader value)
       where
         ptrBuilder = getBuilderPointerElement builder (fromIntegral index)
 
@@ -1745,27 +1814,27 @@ instance (ListElement a) => ListElement (ListReader a) where
 listLength :: ListReader a -> ElementCount
 listLength reader = fromIntegral $ listReaderElementCount reader
 
-toList :: (ListElement a) => ListReader a -> IO [a]
+toList :: (ListReaderElement a) => ListReader a -> IO [a]
 toList list = mapM (getReaderElement list) [0..listLength list-1]
 
-eachElement_ :: (ListElement a) => ListReader a -> (a -> IO b) -> IO ()
+eachElement_ :: (ListReaderElement a) => ListReader a -> (a -> IO b) -> IO ()
 eachElement_ list fn =
     unless (listLength list == 0) $
       mapM_ (fn <=< getReaderElement list) [0..listLength list-1]
 
-eachElement :: (ListElement a) => ListReader a -> (a -> IO b) -> IO [b]
+eachElement :: (ListReaderElement a) => ListReader a -> (a -> IO b) -> IO [b]
 eachElement list fn =
     if listLength list == 0
       then return []
       else mapM (fn <=< getReaderElement list) [0..listLength list-1]
 
-mapElements :: (ListElement a) => (a -> IO b) -> ListReader a -> IO [b]
+mapElements :: (ListReaderElement a) => (a -> IO b) -> ListReader a -> IO [b]
 mapElements fn list =
     if listLength list == 0
       then return []
       else mapM (fn <=< getReaderElement list) [0..listLength list-1]
 
-foldrElements :: (ListElement a) => (a -> b -> IO b) -> b -> ListReader a -> IO b
+foldrElements :: (ListReaderElement a) => (a -> b -> IO b) -> b -> ListReader a -> IO b
 foldrElements f z0 list = go len z0
   where
     len = listLength list
@@ -1776,7 +1845,7 @@ foldrElements f z0 list = go len z0
               elem <- getReaderElement list (n-1)
               f elem z >>= go (n-1)
 
-foldlElements :: (ListElement a) => (b -> a -> IO b) -> b -> ListReader a -> IO b
+foldlElements :: (ListReaderElement a) => (b -> a -> IO b) -> b -> ListReader a -> IO b
 foldlElements f z0 list = go 0 z0
   where
     len = listLength list
