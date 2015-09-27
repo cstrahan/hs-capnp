@@ -1777,6 +1777,9 @@ class ListElement a => ListBuilderElement a where
     getBuilderElement :: ListBuilder a -> ElementCount -> IO a
     getBuilderElement = undefined
 
+    -- XXX: this isn't quite right. we _must_ allow for passing readers,
+    -- though also being able to pass builders is ok.
+    -- this currently only allows for passing builders.
     setBuilderElement :: ListBuilder a -> ElementCount -> a -> IO ()
     default setBuilderElement :: (Storable a) => ListBuilder a -> ElementCount -> a -> IO ()
     setBuilderElement builder index =
