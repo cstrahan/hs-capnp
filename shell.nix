@@ -3,7 +3,7 @@ let
   inherit (pkgs.haskell.lib) withHoogle;
 
   ghc = pkgs.haskellPackages;
-  ghcPackages = ghc.ghcWithPackages (p: with p; [
+  ghcPackages = ghc.ghcWithHoogle (p: with p; [
     ipprint
     ghc-mod
     hdevtools
@@ -33,7 +33,6 @@ with pkgs;
 runCommand "dummy" {
   buildInputs = [
     ghcPackages
-    (withHoogle ghcPackages)
 
     python27Full
     pythonPackages.pycapnp
