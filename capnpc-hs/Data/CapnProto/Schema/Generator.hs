@@ -112,31 +112,31 @@ renderFieldGetter :: StructNode -> Field -> String
 renderFieldGetter node (Field name _ _ _ kind _ ) =
     case kind of
         GroupField typeNode ->
-            "return . "<>mkStructName typeNode <> "_Reader $ reader"
+            "return . "<>mkStructName typeNode <> "_Reader $ struct"
         SlotField offset ty def explicitDefault ->
             if explicitDefault
               then case ty of
                        TyVoid -> "return ()"
-                       TyText{} -> "L.getReaderText (L.getReaderPointerField reader "<>show offset<>") emptyString"
-                       TyData{} -> "L.getReaderData (L.getReaderPointerField reader "<>show offset<>") \"\""
-                       TyList{} -> "L.getReaderList (L.getReaderPointerField reader "<>show offset<>") nullPtr"
-                       TyStruct n _ -> "fmap "<>mkStructName n <> "_Reader $ "<>"L.getReaderStruct (L.getReaderPointerField reader "<>show offset<>") nullPtr"
+                       TyText{} -> "L.getReaderText (L.getReaderPointerField struct "<>show offset<>") emptyString"
+                       TyData{} -> "L.getReaderData (L.getReaderPointerField struct "<>show offset<>") \"\""
+                       TyList{} -> "L.getReaderList (L.getReaderPointerField struct "<>show offset<>") nullPtr"
+                       TyStruct n _ -> "fmap "<>mkStructName n <> "_Reader $ "<>"L.getReaderStruct (L.getReaderPointerField struct "<>show offset<>") nullPtr"
                        TyInterface{} -> "error \"not implemented\""
-                       TyAnyPointer{} -> "return $ L.getReaderPointerField reader"<>show offset
-                       TyBool{} -> "L.getReaderBoolFieldMasked reader "<>show offset<>" "<>defaultValueTerm
-                       TyEnum{} -> "fmap (toEnum . fromIntegral) ("<>"L.getReaderNumericFieldMasked reader "<>show offset<>" "<>show defaultValueTerm<>" :: IO Word16)"
-                       _ -> "L.getReaderNumericFieldMasked reader "<>show offset<>" "<>defaultValueTerm
+                       TyAnyPointer{} -> "return $ L.getReaderPointerField struct"<>show offset
+                       TyBool{} -> "L.getReaderBoolFieldMasked struct "<>show offset<>" "<>defaultValueTerm
+                       TyEnum{} -> "fmap (toEnum . fromIntegral) ("<>"L.getReaderNumericFieldMasked struct "<>show offset<>" "<>show defaultValueTerm<>" :: IO Word16)"
+                       _ -> "L.getReaderNumericFieldMasked struct "<>show offset<>" "<>defaultValueTerm
               else case ty of
                        TyVoid -> "return ()"
-                       TyText{} -> "L.getReaderText (L.getReaderPointerField reader "<>show offset<>") emptyString"
-                       TyData{} -> "L.getReaderData (L.getReaderPointerField reader "<>show offset<>") \"\""
-                       TyList{} -> "L.getReaderList (L.getReaderPointerField reader "<>show offset<>") nullPtr"
-                       TyStruct n _ -> "fmap "<>mkStructName n <> "_Reader $ "<>"L.getReaderStruct (L.getReaderPointerField reader "<>show offset<>") nullPtr"
+                       TyText{} -> "L.getReaderText (L.getReaderPointerField struct "<>show offset<>") emptyString"
+                       TyData{} -> "L.getReaderData (L.getReaderPointerField struct "<>show offset<>") \"\""
+                       TyList{} -> "L.getReaderList (L.getReaderPointerField struct "<>show offset<>") nullPtr"
+                       TyStruct n _ -> "fmap "<>mkStructName n <> "_Reader $ "<>"L.getReaderStruct (L.getReaderPointerField struct "<>show offset<>") nullPtr"
                        TyInterface{} -> "error \"not implemented\""
-                       TyAnyPointer{} -> "return $ L.getReaderPointerField reader "<>show offset
-                       TyBool{} -> "L.getReaderBoolField reader "<>show offset
-                       TyEnum{} -> "fmap (toEnum . fromIntegral) ("<>"L.getReaderNumericField reader "<>show offset<>" :: IO Word16)"
-                       _ -> "L.getReaderNumericField reader "<>show offset
+                       TyAnyPointer{} -> "return $ L.getReaderPointerField struct "<>show offset
+                       TyBool{} -> "L.getReaderBoolField struct "<>show offset
+                       TyEnum{} -> "fmap (toEnum . fromIntegral) ("<>"L.getReaderNumericField struct "<>show offset<>" :: IO Word16)"
+                       _ -> "L.getReaderNumericField struct "<>show offset
           where
             defaultValueTerm =
                 case def of
@@ -170,8 +170,8 @@ renderUnion node =
               , ""
               , "instance L.Union "<>readerName<>" where"
               , "    type UnionTy "<>readerName<>" = "<>whichReaderName
-              , "    which ("<>readerName<>" reader) = do"
-              , "        d <- L.getReaderNumericField reader "<>show discriminantOffset<>" :: IO Word16"
+              , "    which ("<>readerName<>" struct) = do"
+              , "        d <- L.getReaderNumericField struct "<>show discriminantOffset<>" :: IO Word16"
               , "        case d of"
               ] ++ map renderCase unionFields ++ [
                 "            _ -> return $ "<>mkStructName node<>"_NotInSchema d"
@@ -303,7 +303,7 @@ typeToHsType ty =
         TyEnum n _ -> mkEnumName n
         TyStruct n _ -> mkStructName n<>"_Reader"
         TyInterface _ _ -> "()" -- TODO: actually implement this
-        TyAnyPointer _ -> "L.PointerReader" -- TODO: actually implement this
+        TyAnyPointer _ -> "L.PointerReader"
 
 mkData :: StructNode -> String
 mkData node =
@@ -315,8 +315,8 @@ mkData node =
               , ""
               , "instance L.ListElement "<>readerName<>" where"
               , "    elementSize _ = L.SzInlineComposite"
-              , "    getReaderElement reader index ="
-              , "        fmap "<>readerName<>" $ L.getReaderElement (coerce reader) index"
+              , "    getReaderElement list index ="
+              , "        fmap "<>readerName<>" $ L.getReaderElement (coerce list) index"
               , "    getBuilderElement = undefined"
               , "    setBuilderElement = undefined"
               ]
@@ -337,7 +337,7 @@ renderField :: StructNode -> Field -> String
 renderField node field@(Field name _ _ _ kind _) =
     unlines [ "instance Has"<>capField<>" "<>readerName<>" where"
             , "    type "<>capField<>"Ty "<>readerName<>" = "<>fieldToHsType field
-            , "    get"<>capField<>" ("<>readerName<>" reader) = "<>renderFieldGetter node field
+            , "    get"<>capField<>" ("<>readerName<>" struct) = "<>renderFieldGetter node field
             ]
   where
     capField = capitalize name
