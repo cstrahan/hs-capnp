@@ -60,5 +60,5 @@ getRoot (MessageReader arena) = do
     segment <- segmentReaderGetFirstSegment arena
     withSegmentReader segment $ \ptr -> do
         pointerReader <- L.getRoot segment (unsafeSegmentReaderPtr segment)
-        struct <- getStruct pointerReader nullPtr
+        struct <- getReaderStruct pointerReader nullPtr
         fromStructReader struct
