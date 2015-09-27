@@ -1517,9 +1517,9 @@ setNumericFieldMasked struct index def val = setNumericField struct index (val `
 --------------------------------------------------------------------------------
 -- Pointers
 
-----------
--- Readers
-----------
+-----------------
+-- Reader Getters
+-----------------
 getReaderStruct :: PointerReader -> Ptr CPWord -> IO StructReader
 getReaderStruct reader = readStructPointer (pointerReaderSegment reader) (pointerReaderData reader)
 
@@ -1537,16 +1537,18 @@ getReaderData :: PointerReader -> BS.ByteString -> IO DataReader
 getReaderData reader =
     readDataPointer (pointerReaderSegment reader) (pointerReaderData reader)
 
------------
--- Builders
------------
+------------------
+-- Builder Getters
+------------------
 getBuilderStruct :: PointerBuilder -> StructSize -> Ptr CPWord -> IO StructBuilder
 getBuilderStruct builder =
     getWritableStructPointer (pointerBuilderData builder) (pointerBuilderSegment builder)
 
-getBuilderList :: PointerBuilder -> ElementSize -> Ptr CPWord -> IO (ListBuilder a)
-getBuilderList builder =
-    getWritableListPointer (pointerBuilderData builder) (pointerBuilderSegment builder)
+getBuilderList :: ListElement a => PointerBuilder -> Ptr CPWord -> IO (ListBuilder a)
+getBuilderList = go undefined
+  where
+    go :: ListElement a => a -> PointerBuilder -> Ptr CPWord -> IO (ListBuilder a)
+    go dummy builder = getWritableListPointer (pointerBuilderData builder) (pointerBuilderSegment builder) (elementSize dummy)
 
 getBuilderText :: PointerBuilder -> BS.ByteString -> IO TextBuilder
 getBuilderText builder =
@@ -1556,6 +1558,41 @@ getBuilderData :: PointerBuilder -> BS.ByteString -> IO DataBuilder
 getBuilderData builder =
     getWritableDataPointer (pointerBuilderData builder) (pointerBuilderSegment builder)
 
+-----------
+-- Initters
+-----------
+initStruct :: PointerBuilder -> StructSize -> IO StructBuilder
+initStruct builder =
+    initStructPointer (pointerBuilderData builder) (pointerBuilderSegment builder)
+
+initList :: ListElement a => PointerBuilder -> ElementCount32 -> IO (ListBuilder a)
+initList = go undefined
+  where
+    go :: ListElement a => a -> PointerBuilder -> ElementCount32 -> IO (ListBuilder a)
+    go dummy builder count = initListPointer (pointerBuilderData builder) (pointerBuilderSegment builder) count (elementSize dummy)
+
+initText :: PointerBuilder -> ByteCount32 -> IO TextBuilder
+initText builder =
+    initTextPointer (pointerBuilderData builder) (pointerBuilderSegment builder)
+
+initData :: PointerBuilder -> ByteCount32 -> IO DataBuilder
+initData builder =
+    initDataPointer (pointerBuilderData builder) (pointerBuilderSegment builder)
+
+----------
+-- Setters
+----------
+setStruct :: PointerBuilder -> StructReader -> IO ()
+setStruct builder = void . setStructPointer (pointerBuilderSegment builder) (pointerBuilderData builder)
+
+setList :: PointerBuilder -> ListReader a -> IO ()
+setList builder = void . setListPointer (pointerBuilderSegment builder) (pointerBuilderData builder)
+
+setText :: PointerBuilder -> BS.ByteString -> IO ()
+setText builder = void . setTextPointer (pointerBuilderData builder) (pointerBuilderSegment builder)
+
+setData :: PointerBuilder -> BS.ByteString -> IO ()
+setData builder = void . setDataPointer (pointerBuilderData builder) (pointerBuilderSegment builder)
 
 --------------------------------------------------------------------------------
 -- Lists

@@ -257,10 +257,12 @@ renderEnum node =
               , ""
               , "instance L.ListElement "<>enumName<>" where"
               , "    elementSize _ = L.SzTwoBytes"
-              , "    getReaderElement reader index ="
-              , "        fmap (toEnum . fromIntegral) (L.getReaderElement (coerce reader) index :: IO Word16)"
-              , "    getBuilderElement = undefined"
-              , "    setBuilderElement = undefined"
+              , "    getReaderElement list index ="
+              , "        fmap (toEnum . fromIntegral) (L.getReaderElement (coerce list) index :: IO Word16)"
+              , "    getBuilderElement list index ="
+              , "        fmap (toEnum . fromIntegral) (L.getBuilderElement (coerce list) index :: IO Word16)"
+              , "    setBuilderElement list index val ="
+              , "        L.setBuilderElement (coerce list) index (fromIntegral . fromEnum $ val :: Word16)"
               ]
   where
     enumName = mkEnumName node
@@ -317,8 +319,10 @@ mkData node =
               , "    elementSize _ = L.SzInlineComposite"
               , "    getReaderElement list index ="
               , "        fmap "<>readerName<>" $ L.getReaderElement (coerce list) index"
-              , "    getBuilderElement = undefined"
-              , "    setBuilderElement = undefined"
+              , "    getBuilderElement list index ="
+              , "        fmap "<>readerName<>" $ L.getBuilderElement (coerce list) index"
+              , "    setBuilderElement list index ("<>readerName<>" struct) ="
+              , "        L.setBuilderElement (coerce list) index struct"
               ]
   where
     readerName = mkStructName node<>"_Reader"
