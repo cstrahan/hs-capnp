@@ -1616,6 +1616,37 @@ getReaderPointerElement reader index =
     ptr = listReaderData reader `plusPtr` offset
     offset = fromIntegral index * (fromIntegral (listReaderStep reader `div` fromIntegral bitsPerByte))
 
+getBuilderStructElement :: ListBuilder a -> ElementCount32 -> StructBuilder
+getBuilderStructElement builder index =
+    StructBuilder (listBuilderSegment builder)
+                 structData
+                 structPointers
+                 (listBuilderStructDataSize builder)
+                 (listBuilderStructPtrCount builder)
+  where
+    indexBit = fromIntegral index * fromIntegral (listBuilderStep builder) :: BitCount64
+    structData = listBuilderData builder `plusPtr` (fromIntegral (indexBit `div` fromIntegral bitsPerByte)) :: Ptr Word8
+    structPointers = structData `plusPtr` (fromIntegral (listBuilderStructDataSize builder `div` fromIntegral bitsPerByte))
+
+    {- pub fn get_struct_element(&self, index : ElementCount32) -> StructBuilder<'a> { -}
+        {- let index_bit = index * self.step; -}
+        {- let struct_data = unsafe{ self.ptr.offset((index_bit / BITS_PER_BYTE as u32) as isize)}; -}
+        {- let struct_pointers = unsafe { -}
+            {- ::std::mem::transmute( -}
+                {- struct_data.offset(((self.struct_data_size as usize) / BITS_PER_BYTE) as isize)) -}
+        {- }; -}
+        {- StructBuilder { -}
+            {- marker : ::std::marker::PhantomData::<&'a ()>, -}
+            {- segment : self.segment, -}
+            {- data : struct_data, -}
+            {- pointers : struct_pointers, -}
+            {- data_size : self.struct_data_size, -}
+            {- pointer_count : self.struct_pointer_count, -}
+        {- } -}
+    {- } -}
+
+
+
 getBuilderPointerElement :: ListBuilder a -> ElementCount32 -> PointerBuilder
 getBuilderPointerElement builder index =
     PointerBuilder (listBuilderSegment builder) ptr
@@ -1699,6 +1730,15 @@ instance ListElement Double where
 instance ListElement StructReader where
     elementSize _ = SzInlineComposite
     getReaderElement reader index = return $ getReaderStructElement reader (fromIntegral index)
+
+    setBuilderElement builder index value =
+        void $ setStructPointer (pointerBuilderSegment ptrBuilder) (pointerBuilderData ptrBuilder) value
+      where
+        ptrBuilder = getBuilderPointerElement builder (fromIntegral index)
+
+instance ListElement StructBuilder where
+    elementSize _ = SzInlineComposite
+    getReaderElement reader index = return $ getBuilderStructElement reader (fromIntegral index)
 
     setBuilderElement builder index value =
         void $ setStructPointer (pointerBuilderSegment ptrBuilder) (pointerBuilderData ptrBuilder) value

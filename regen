@@ -1,0 +1,2 @@
+#!/bin/sh
+cat schema.bin | dist/build/capnpc-hs/capnpc-hs > capnpc-hs/Data/CapnProto/Schema/Generated.hs
