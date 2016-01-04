@@ -42,28 +42,28 @@ instance L.ListBuilderElement Annotation_Builder where
     setBuilderElement list index (Annotation_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
-instance HasId Annotation_Reader where
-    type IdTy Annotation_Reader = Word64
+instance Get_Id Annotation_Reader where
+    type Get_Id_Ty Annotation_Reader = Word64
     getId (Annotation_Reader struct) = L.getReaderNumericField struct 0
 
-instance HasId Annotation_Builder where
-    type IdTy Annotation_Builder = Word64
+instance Get_Id Annotation_Builder where
+    type Get_Id_Ty Annotation_Builder = Word64
     getId (Annotation_Builder struct) = L.getBuilderNumericField struct 0
 
-instance HasValue Annotation_Reader where
-    type ValueTy Annotation_Reader = Value_Reader
+instance Get_Value Annotation_Reader where
+    type Get_Value_Ty Annotation_Reader = Value_Reader
     getValue (Annotation_Reader struct) = fmap Value_Reader $ L.getReaderStruct (L.getReaderPointerField struct 0) nullPtr
 
-instance HasValue Annotation_Builder where
-    type ValueTy Annotation_Builder = Value_Builder
+instance Get_Value Annotation_Builder where
+    type Get_Value_Ty Annotation_Builder = Value_Builder
     getValue (Annotation_Builder struct) = fmap Value_Builder $ L.getBuilderStruct (L.getBuilderPointerField struct 0) (L.StructSize 1 2) nullPtr
 
-instance HasBrand Annotation_Reader where
-    type BrandTy Annotation_Reader = Brand_Reader
+instance Get_Brand Annotation_Reader where
+    type Get_Brand_Ty Annotation_Reader = Brand_Reader
     getBrand (Annotation_Reader struct) = fmap Brand_Reader $ L.getReaderStruct (L.getReaderPointerField struct 1) nullPtr
 
-instance HasBrand Annotation_Builder where
-    type BrandTy Annotation_Builder = Brand_Builder
+instance Get_Brand Annotation_Builder where
+    type Get_Brand_Ty Annotation_Builder = Brand_Builder
     getBrand (Annotation_Builder struct) = fmap Brand_Builder $ L.getBuilderStruct (L.getBuilderPointerField struct 1) (L.StructSize 1 2) nullPtr
 
 
@@ -89,12 +89,12 @@ instance L.ListBuilderElement Brand_Builder where
     setBuilderElement list index (Brand_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
-instance HasScopes Brand_Reader where
-    type ScopesTy Brand_Reader = (L.ListReader Brand_Scope_Reader)
+instance Get_Scopes Brand_Reader where
+    type Get_Scopes_Ty Brand_Reader = (L.ListReader Brand_Scope_Reader)
     getScopes (Brand_Reader struct) = L.getReaderList (L.getReaderPointerField struct 0) nullPtr
 
-instance HasScopes Brand_Builder where
-    type ScopesTy Brand_Builder = (L.ListBuilder Brand_Scope_Builder)
+instance Get_Scopes Brand_Builder where
+    type Get_Scopes_Ty Brand_Builder = (L.ListBuilder Brand_Scope_Builder)
     getScopes (Brand_Builder struct) = L.getBuilderList (L.getBuilderPointerField struct 0) nullPtr
 
 
@@ -171,12 +171,12 @@ instance L.ListBuilderElement Brand_Scope_Builder where
     setBuilderElement list index (Brand_Scope_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
-instance HasScopeId Brand_Scope_Reader where
-    type ScopeIdTy Brand_Scope_Reader = Word64
+instance Get_ScopeId Brand_Scope_Reader where
+    type Get_ScopeId_Ty Brand_Scope_Reader = Word64
     getScopeId (Brand_Scope_Reader struct) = L.getReaderNumericField struct 0
 
-instance HasScopeId Brand_Scope_Builder where
-    type ScopeIdTy Brand_Scope_Builder = Word64
+instance Get_ScopeId Brand_Scope_Builder where
+    type Get_ScopeId_Ty Brand_Scope_Builder = Word64
     getScopeId (Brand_Scope_Builder struct) = L.getBuilderNumericField struct 0
 
 data Brand_Scope_Which_Reader
@@ -230,20 +230,20 @@ instance L.ListBuilderElement CodeGeneratorRequest_Builder where
     setBuilderElement list index (CodeGeneratorRequest_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
-instance HasNodes CodeGeneratorRequest_Reader where
-    type NodesTy CodeGeneratorRequest_Reader = (L.ListReader Node_Reader)
+instance Get_Nodes CodeGeneratorRequest_Reader where
+    type Get_Nodes_Ty CodeGeneratorRequest_Reader = (L.ListReader Node_Reader)
     getNodes (CodeGeneratorRequest_Reader struct) = L.getReaderList (L.getReaderPointerField struct 0) nullPtr
 
-instance HasNodes CodeGeneratorRequest_Builder where
-    type NodesTy CodeGeneratorRequest_Builder = (L.ListBuilder Node_Builder)
+instance Get_Nodes CodeGeneratorRequest_Builder where
+    type Get_Nodes_Ty CodeGeneratorRequest_Builder = (L.ListBuilder Node_Builder)
     getNodes (CodeGeneratorRequest_Builder struct) = L.getBuilderList (L.getBuilderPointerField struct 0) nullPtr
 
-instance HasRequestedFiles CodeGeneratorRequest_Reader where
-    type RequestedFilesTy CodeGeneratorRequest_Reader = (L.ListReader CodeGeneratorRequest_RequestedFile_Reader)
+instance Get_RequestedFiles CodeGeneratorRequest_Reader where
+    type Get_RequestedFiles_Ty CodeGeneratorRequest_Reader = (L.ListReader CodeGeneratorRequest_RequestedFile_Reader)
     getRequestedFiles (CodeGeneratorRequest_Reader struct) = L.getReaderList (L.getReaderPointerField struct 1) nullPtr
 
-instance HasRequestedFiles CodeGeneratorRequest_Builder where
-    type RequestedFilesTy CodeGeneratorRequest_Builder = (L.ListBuilder CodeGeneratorRequest_RequestedFile_Builder)
+instance Get_RequestedFiles CodeGeneratorRequest_Builder where
+    type Get_RequestedFiles_Ty CodeGeneratorRequest_Builder = (L.ListBuilder CodeGeneratorRequest_RequestedFile_Builder)
     getRequestedFiles (CodeGeneratorRequest_Builder struct) = L.getBuilderList (L.getBuilderPointerField struct 1) nullPtr
 
 
@@ -269,28 +269,28 @@ instance L.ListBuilderElement CodeGeneratorRequest_RequestedFile_Builder where
     setBuilderElement list index (CodeGeneratorRequest_RequestedFile_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
-instance HasId CodeGeneratorRequest_RequestedFile_Reader where
-    type IdTy CodeGeneratorRequest_RequestedFile_Reader = Word64
+instance Get_Id CodeGeneratorRequest_RequestedFile_Reader where
+    type Get_Id_Ty CodeGeneratorRequest_RequestedFile_Reader = Word64
     getId (CodeGeneratorRequest_RequestedFile_Reader struct) = L.getReaderNumericField struct 0
 
-instance HasId CodeGeneratorRequest_RequestedFile_Builder where
-    type IdTy CodeGeneratorRequest_RequestedFile_Builder = Word64
+instance Get_Id CodeGeneratorRequest_RequestedFile_Builder where
+    type Get_Id_Ty CodeGeneratorRequest_RequestedFile_Builder = Word64
     getId (CodeGeneratorRequest_RequestedFile_Builder struct) = L.getBuilderNumericField struct 0
 
-instance HasFilename CodeGeneratorRequest_RequestedFile_Reader where
-    type FilenameTy CodeGeneratorRequest_RequestedFile_Reader = L.TextReader
+instance Get_Filename CodeGeneratorRequest_RequestedFile_Reader where
+    type Get_Filename_Ty CodeGeneratorRequest_RequestedFile_Reader = L.TextReader
     getFilename (CodeGeneratorRequest_RequestedFile_Reader struct) = L.getReaderText (L.getReaderPointerField struct 0) emptyString
 
-instance HasFilename CodeGeneratorRequest_RequestedFile_Builder where
-    type FilenameTy CodeGeneratorRequest_RequestedFile_Builder = L.TextBuilder
+instance Get_Filename CodeGeneratorRequest_RequestedFile_Builder where
+    type Get_Filename_Ty CodeGeneratorRequest_RequestedFile_Builder = L.TextBuilder
     getFilename (CodeGeneratorRequest_RequestedFile_Builder struct) = L.getBuilderText (L.getBuilderPointerField struct 0) emptyString
 
-instance HasImports CodeGeneratorRequest_RequestedFile_Reader where
-    type ImportsTy CodeGeneratorRequest_RequestedFile_Reader = (L.ListReader CodeGeneratorRequest_RequestedFile_Import_Reader)
+instance Get_Imports CodeGeneratorRequest_RequestedFile_Reader where
+    type Get_Imports_Ty CodeGeneratorRequest_RequestedFile_Reader = (L.ListReader CodeGeneratorRequest_RequestedFile_Import_Reader)
     getImports (CodeGeneratorRequest_RequestedFile_Reader struct) = L.getReaderList (L.getReaderPointerField struct 1) nullPtr
 
-instance HasImports CodeGeneratorRequest_RequestedFile_Builder where
-    type ImportsTy CodeGeneratorRequest_RequestedFile_Builder = (L.ListBuilder CodeGeneratorRequest_RequestedFile_Import_Builder)
+instance Get_Imports CodeGeneratorRequest_RequestedFile_Builder where
+    type Get_Imports_Ty CodeGeneratorRequest_RequestedFile_Builder = (L.ListBuilder CodeGeneratorRequest_RequestedFile_Import_Builder)
     getImports (CodeGeneratorRequest_RequestedFile_Builder struct) = L.getBuilderList (L.getBuilderPointerField struct 1) nullPtr
 
 
@@ -316,20 +316,20 @@ instance L.ListBuilderElement CodeGeneratorRequest_RequestedFile_Import_Builder 
     setBuilderElement list index (CodeGeneratorRequest_RequestedFile_Import_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
-instance HasId CodeGeneratorRequest_RequestedFile_Import_Reader where
-    type IdTy CodeGeneratorRequest_RequestedFile_Import_Reader = Word64
+instance Get_Id CodeGeneratorRequest_RequestedFile_Import_Reader where
+    type Get_Id_Ty CodeGeneratorRequest_RequestedFile_Import_Reader = Word64
     getId (CodeGeneratorRequest_RequestedFile_Import_Reader struct) = L.getReaderNumericField struct 0
 
-instance HasId CodeGeneratorRequest_RequestedFile_Import_Builder where
-    type IdTy CodeGeneratorRequest_RequestedFile_Import_Builder = Word64
+instance Get_Id CodeGeneratorRequest_RequestedFile_Import_Builder where
+    type Get_Id_Ty CodeGeneratorRequest_RequestedFile_Import_Builder = Word64
     getId (CodeGeneratorRequest_RequestedFile_Import_Builder struct) = L.getBuilderNumericField struct 0
 
-instance HasName CodeGeneratorRequest_RequestedFile_Import_Reader where
-    type NameTy CodeGeneratorRequest_RequestedFile_Import_Reader = L.TextReader
+instance Get_Name CodeGeneratorRequest_RequestedFile_Import_Reader where
+    type Get_Name_Ty CodeGeneratorRequest_RequestedFile_Import_Reader = L.TextReader
     getName (CodeGeneratorRequest_RequestedFile_Import_Reader struct) = L.getReaderText (L.getReaderPointerField struct 0) emptyString
 
-instance HasName CodeGeneratorRequest_RequestedFile_Import_Builder where
-    type NameTy CodeGeneratorRequest_RequestedFile_Import_Builder = L.TextBuilder
+instance Get_Name CodeGeneratorRequest_RequestedFile_Import_Builder where
+    type Get_Name_Ty CodeGeneratorRequest_RequestedFile_Import_Builder = L.TextBuilder
     getName (CodeGeneratorRequest_RequestedFile_Import_Builder struct) = L.getBuilderText (L.getBuilderPointerField struct 0) emptyString
 
 
@@ -355,28 +355,28 @@ instance L.ListBuilderElement Enumerant_Builder where
     setBuilderElement list index (Enumerant_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
-instance HasName Enumerant_Reader where
-    type NameTy Enumerant_Reader = L.TextReader
+instance Get_Name Enumerant_Reader where
+    type Get_Name_Ty Enumerant_Reader = L.TextReader
     getName (Enumerant_Reader struct) = L.getReaderText (L.getReaderPointerField struct 0) emptyString
 
-instance HasName Enumerant_Builder where
-    type NameTy Enumerant_Builder = L.TextBuilder
+instance Get_Name Enumerant_Builder where
+    type Get_Name_Ty Enumerant_Builder = L.TextBuilder
     getName (Enumerant_Builder struct) = L.getBuilderText (L.getBuilderPointerField struct 0) emptyString
 
-instance HasCodeOrder Enumerant_Reader where
-    type CodeOrderTy Enumerant_Reader = Word16
+instance Get_CodeOrder Enumerant_Reader where
+    type Get_CodeOrder_Ty Enumerant_Reader = Word16
     getCodeOrder (Enumerant_Reader struct) = L.getReaderNumericField struct 0
 
-instance HasCodeOrder Enumerant_Builder where
-    type CodeOrderTy Enumerant_Builder = Word16
+instance Get_CodeOrder Enumerant_Builder where
+    type Get_CodeOrder_Ty Enumerant_Builder = Word16
     getCodeOrder (Enumerant_Builder struct) = L.getBuilderNumericField struct 0
 
-instance HasAnnotations Enumerant_Reader where
-    type AnnotationsTy Enumerant_Reader = (L.ListReader Annotation_Reader)
+instance Get_Annotations Enumerant_Reader where
+    type Get_Annotations_Ty Enumerant_Reader = (L.ListReader Annotation_Reader)
     getAnnotations (Enumerant_Reader struct) = L.getReaderList (L.getReaderPointerField struct 1) nullPtr
 
-instance HasAnnotations Enumerant_Builder where
-    type AnnotationsTy Enumerant_Builder = (L.ListBuilder Annotation_Builder)
+instance Get_Annotations Enumerant_Builder where
+    type Get_Annotations_Ty Enumerant_Builder = (L.ListBuilder Annotation_Builder)
     getAnnotations (Enumerant_Builder struct) = L.getBuilderList (L.getBuilderPointerField struct 1) nullPtr
 
 
@@ -402,44 +402,44 @@ instance L.ListBuilderElement Field_Builder where
     setBuilderElement list index (Field_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
-instance HasName Field_Reader where
-    type NameTy Field_Reader = L.TextReader
+instance Get_Name Field_Reader where
+    type Get_Name_Ty Field_Reader = L.TextReader
     getName (Field_Reader struct) = L.getReaderText (L.getReaderPointerField struct 0) emptyString
 
-instance HasName Field_Builder where
-    type NameTy Field_Builder = L.TextBuilder
+instance Get_Name Field_Builder where
+    type Get_Name_Ty Field_Builder = L.TextBuilder
     getName (Field_Builder struct) = L.getBuilderText (L.getBuilderPointerField struct 0) emptyString
 
-instance HasCodeOrder Field_Reader where
-    type CodeOrderTy Field_Reader = Word16
+instance Get_CodeOrder Field_Reader where
+    type Get_CodeOrder_Ty Field_Reader = Word16
     getCodeOrder (Field_Reader struct) = L.getReaderNumericField struct 0
 
-instance HasCodeOrder Field_Builder where
-    type CodeOrderTy Field_Builder = Word16
+instance Get_CodeOrder Field_Builder where
+    type Get_CodeOrder_Ty Field_Builder = Word16
     getCodeOrder (Field_Builder struct) = L.getBuilderNumericField struct 0
 
-instance HasAnnotations Field_Reader where
-    type AnnotationsTy Field_Reader = (L.ListReader Annotation_Reader)
+instance Get_Annotations Field_Reader where
+    type Get_Annotations_Ty Field_Reader = (L.ListReader Annotation_Reader)
     getAnnotations (Field_Reader struct) = L.getReaderList (L.getReaderPointerField struct 1) nullPtr
 
-instance HasAnnotations Field_Builder where
-    type AnnotationsTy Field_Builder = (L.ListBuilder Annotation_Builder)
+instance Get_Annotations Field_Builder where
+    type Get_Annotations_Ty Field_Builder = (L.ListBuilder Annotation_Builder)
     getAnnotations (Field_Builder struct) = L.getBuilderList (L.getBuilderPointerField struct 1) nullPtr
 
-instance HasDiscriminantValue Field_Reader where
-    type DiscriminantValueTy Field_Reader = Word16
+instance Get_DiscriminantValue Field_Reader where
+    type Get_DiscriminantValue_Ty Field_Reader = Word16
     getDiscriminantValue (Field_Reader struct) = L.getReaderNumericFieldMasked struct 1 65535
 
-instance HasDiscriminantValue Field_Builder where
-    type DiscriminantValueTy Field_Builder = Word16
+instance Get_DiscriminantValue Field_Builder where
+    type Get_DiscriminantValue_Ty Field_Builder = Word16
     getDiscriminantValue (Field_Builder struct) = L.getBuilderNumericFieldMasked struct 1 65535
 
-instance HasOrdinal Field_Reader where
-    type OrdinalTy Field_Reader = Field_ordinal_Reader
+instance Get_Ordinal Field_Reader where
+    type Get_Ordinal_Ty Field_Reader = Field_ordinal_Reader
     getOrdinal (Field_Reader struct) = return . Field_ordinal_Reader $ struct
 
-instance HasOrdinal Field_Builder where
-    type OrdinalTy Field_Builder = Field_ordinal_Builder
+instance Get_Ordinal Field_Builder where
+    type Get_Ordinal_Ty Field_Builder = Field_ordinal_Builder
     getOrdinal (Field_Builder struct) = return . Field_ordinal_Builder $ struct
 
 data Field_Which_Reader
@@ -474,12 +474,12 @@ instance L.Union Field_Builder where
 data Field_group_Reader = Field_group_Reader L.StructReader
 data Field_group_Builder = Field_group_Builder L.StructBuilder
 
-instance HasTypeId Field_group_Reader where
-    type TypeIdTy Field_group_Reader = Word64
+instance Get_TypeId Field_group_Reader where
+    type Get_TypeId_Ty Field_group_Reader = Word64
     getTypeId (Field_group_Reader struct) = L.getReaderNumericField struct 2
 
-instance HasTypeId Field_group_Builder where
-    type TypeIdTy Field_group_Builder = Word64
+instance Get_TypeId Field_group_Builder where
+    type Get_TypeId_Ty Field_group_Builder = Word64
     getTypeId (Field_group_Builder struct) = L.getBuilderNumericField struct 2
 
 
@@ -518,36 +518,36 @@ instance L.Union Field_ordinal_Builder where
 data Field_slot_Reader = Field_slot_Reader L.StructReader
 data Field_slot_Builder = Field_slot_Builder L.StructBuilder
 
-instance HasOffset Field_slot_Reader where
-    type OffsetTy Field_slot_Reader = Word32
+instance Get_Offset Field_slot_Reader where
+    type Get_Offset_Ty Field_slot_Reader = Word32
     getOffset (Field_slot_Reader struct) = L.getReaderNumericField struct 1
 
-instance HasOffset Field_slot_Builder where
-    type OffsetTy Field_slot_Builder = Word32
+instance Get_Offset Field_slot_Builder where
+    type Get_Offset_Ty Field_slot_Builder = Word32
     getOffset (Field_slot_Builder struct) = L.getBuilderNumericField struct 1
 
-instance HasType Field_slot_Reader where
-    type TypeTy Field_slot_Reader = Type_Reader
+instance Get_Type Field_slot_Reader where
+    type Get_Type_Ty Field_slot_Reader = Type_Reader
     getType (Field_slot_Reader struct) = fmap Type_Reader $ L.getReaderStruct (L.getReaderPointerField struct 2) nullPtr
 
-instance HasType Field_slot_Builder where
-    type TypeTy Field_slot_Builder = Type_Builder
+instance Get_Type Field_slot_Builder where
+    type Get_Type_Ty Field_slot_Builder = Type_Builder
     getType (Field_slot_Builder struct) = fmap Type_Builder $ L.getBuilderStruct (L.getBuilderPointerField struct 2) (L.StructSize 3 4) nullPtr
 
-instance HasDefaultValue Field_slot_Reader where
-    type DefaultValueTy Field_slot_Reader = Value_Reader
+instance Get_DefaultValue Field_slot_Reader where
+    type Get_DefaultValue_Ty Field_slot_Reader = Value_Reader
     getDefaultValue (Field_slot_Reader struct) = fmap Value_Reader $ L.getReaderStruct (L.getReaderPointerField struct 3) nullPtr
 
-instance HasDefaultValue Field_slot_Builder where
-    type DefaultValueTy Field_slot_Builder = Value_Builder
+instance Get_DefaultValue Field_slot_Builder where
+    type Get_DefaultValue_Ty Field_slot_Builder = Value_Builder
     getDefaultValue (Field_slot_Builder struct) = fmap Value_Builder $ L.getBuilderStruct (L.getBuilderPointerField struct 3) (L.StructSize 3 4) nullPtr
 
-instance HasHadExplicitDefault Field_slot_Reader where
-    type HadExplicitDefaultTy Field_slot_Reader = Bool
+instance Get_HadExplicitDefault Field_slot_Reader where
+    type Get_HadExplicitDefault_Ty Field_slot_Reader = Bool
     getHadExplicitDefault (Field_slot_Reader struct) = L.getReaderBoolField struct 128
 
-instance HasHadExplicitDefault Field_slot_Builder where
-    type HadExplicitDefaultTy Field_slot_Builder = Bool
+instance Get_HadExplicitDefault Field_slot_Builder where
+    type Get_HadExplicitDefault_Ty Field_slot_Builder = Bool
     getHadExplicitDefault (Field_slot_Builder struct) = L.getBuilderBoolField struct 128
 
 
@@ -573,68 +573,68 @@ instance L.ListBuilderElement Method_Builder where
     setBuilderElement list index (Method_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
-instance HasName Method_Reader where
-    type NameTy Method_Reader = L.TextReader
+instance Get_Name Method_Reader where
+    type Get_Name_Ty Method_Reader = L.TextReader
     getName (Method_Reader struct) = L.getReaderText (L.getReaderPointerField struct 0) emptyString
 
-instance HasName Method_Builder where
-    type NameTy Method_Builder = L.TextBuilder
+instance Get_Name Method_Builder where
+    type Get_Name_Ty Method_Builder = L.TextBuilder
     getName (Method_Builder struct) = L.getBuilderText (L.getBuilderPointerField struct 0) emptyString
 
-instance HasCodeOrder Method_Reader where
-    type CodeOrderTy Method_Reader = Word16
+instance Get_CodeOrder Method_Reader where
+    type Get_CodeOrder_Ty Method_Reader = Word16
     getCodeOrder (Method_Reader struct) = L.getReaderNumericField struct 0
 
-instance HasCodeOrder Method_Builder where
-    type CodeOrderTy Method_Builder = Word16
+instance Get_CodeOrder Method_Builder where
+    type Get_CodeOrder_Ty Method_Builder = Word16
     getCodeOrder (Method_Builder struct) = L.getBuilderNumericField struct 0
 
-instance HasParamStructType Method_Reader where
-    type ParamStructTypeTy Method_Reader = Word64
+instance Get_ParamStructType Method_Reader where
+    type Get_ParamStructType_Ty Method_Reader = Word64
     getParamStructType (Method_Reader struct) = L.getReaderNumericField struct 1
 
-instance HasParamStructType Method_Builder where
-    type ParamStructTypeTy Method_Builder = Word64
+instance Get_ParamStructType Method_Builder where
+    type Get_ParamStructType_Ty Method_Builder = Word64
     getParamStructType (Method_Builder struct) = L.getBuilderNumericField struct 1
 
-instance HasResultStructType Method_Reader where
-    type ResultStructTypeTy Method_Reader = Word64
+instance Get_ResultStructType Method_Reader where
+    type Get_ResultStructType_Ty Method_Reader = Word64
     getResultStructType (Method_Reader struct) = L.getReaderNumericField struct 2
 
-instance HasResultStructType Method_Builder where
-    type ResultStructTypeTy Method_Builder = Word64
+instance Get_ResultStructType Method_Builder where
+    type Get_ResultStructType_Ty Method_Builder = Word64
     getResultStructType (Method_Builder struct) = L.getBuilderNumericField struct 2
 
-instance HasAnnotations Method_Reader where
-    type AnnotationsTy Method_Reader = (L.ListReader Annotation_Reader)
+instance Get_Annotations Method_Reader where
+    type Get_Annotations_Ty Method_Reader = (L.ListReader Annotation_Reader)
     getAnnotations (Method_Reader struct) = L.getReaderList (L.getReaderPointerField struct 1) nullPtr
 
-instance HasAnnotations Method_Builder where
-    type AnnotationsTy Method_Builder = (L.ListBuilder Annotation_Builder)
+instance Get_Annotations Method_Builder where
+    type Get_Annotations_Ty Method_Builder = (L.ListBuilder Annotation_Builder)
     getAnnotations (Method_Builder struct) = L.getBuilderList (L.getBuilderPointerField struct 1) nullPtr
 
-instance HasParamBrand Method_Reader where
-    type ParamBrandTy Method_Reader = Brand_Reader
+instance Get_ParamBrand Method_Reader where
+    type Get_ParamBrand_Ty Method_Reader = Brand_Reader
     getParamBrand (Method_Reader struct) = fmap Brand_Reader $ L.getReaderStruct (L.getReaderPointerField struct 2) nullPtr
 
-instance HasParamBrand Method_Builder where
-    type ParamBrandTy Method_Builder = Brand_Builder
+instance Get_ParamBrand Method_Builder where
+    type Get_ParamBrand_Ty Method_Builder = Brand_Builder
     getParamBrand (Method_Builder struct) = fmap Brand_Builder $ L.getBuilderStruct (L.getBuilderPointerField struct 2) (L.StructSize 3 5) nullPtr
 
-instance HasResultBrand Method_Reader where
-    type ResultBrandTy Method_Reader = Brand_Reader
+instance Get_ResultBrand Method_Reader where
+    type Get_ResultBrand_Ty Method_Reader = Brand_Reader
     getResultBrand (Method_Reader struct) = fmap Brand_Reader $ L.getReaderStruct (L.getReaderPointerField struct 3) nullPtr
 
-instance HasResultBrand Method_Builder where
-    type ResultBrandTy Method_Builder = Brand_Builder
+instance Get_ResultBrand Method_Builder where
+    type Get_ResultBrand_Ty Method_Builder = Brand_Builder
     getResultBrand (Method_Builder struct) = fmap Brand_Builder $ L.getBuilderStruct (L.getBuilderPointerField struct 3) (L.StructSize 3 5) nullPtr
 
-instance HasImplicitParameters Method_Reader where
-    type ImplicitParametersTy Method_Reader = (L.ListReader Node_Parameter_Reader)
+instance Get_ImplicitParameters Method_Reader where
+    type Get_ImplicitParameters_Ty Method_Reader = (L.ListReader Node_Parameter_Reader)
     getImplicitParameters (Method_Reader struct) = L.getReaderList (L.getReaderPointerField struct 4) nullPtr
 
-instance HasImplicitParameters Method_Builder where
-    type ImplicitParametersTy Method_Builder = (L.ListBuilder Node_Parameter_Builder)
+instance Get_ImplicitParameters Method_Builder where
+    type Get_ImplicitParameters_Ty Method_Builder = (L.ListBuilder Node_Parameter_Builder)
     getImplicitParameters (Method_Builder struct) = L.getBuilderList (L.getBuilderPointerField struct 4) nullPtr
 
 
@@ -660,68 +660,68 @@ instance L.ListBuilderElement Node_Builder where
     setBuilderElement list index (Node_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
-instance HasId Node_Reader where
-    type IdTy Node_Reader = Word64
+instance Get_Id Node_Reader where
+    type Get_Id_Ty Node_Reader = Word64
     getId (Node_Reader struct) = L.getReaderNumericField struct 0
 
-instance HasId Node_Builder where
-    type IdTy Node_Builder = Word64
+instance Get_Id Node_Builder where
+    type Get_Id_Ty Node_Builder = Word64
     getId (Node_Builder struct) = L.getBuilderNumericField struct 0
 
-instance HasDisplayName Node_Reader where
-    type DisplayNameTy Node_Reader = L.TextReader
+instance Get_DisplayName Node_Reader where
+    type Get_DisplayName_Ty Node_Reader = L.TextReader
     getDisplayName (Node_Reader struct) = L.getReaderText (L.getReaderPointerField struct 0) emptyString
 
-instance HasDisplayName Node_Builder where
-    type DisplayNameTy Node_Builder = L.TextBuilder
+instance Get_DisplayName Node_Builder where
+    type Get_DisplayName_Ty Node_Builder = L.TextBuilder
     getDisplayName (Node_Builder struct) = L.getBuilderText (L.getBuilderPointerField struct 0) emptyString
 
-instance HasDisplayNamePrefixLength Node_Reader where
-    type DisplayNamePrefixLengthTy Node_Reader = Word32
+instance Get_DisplayNamePrefixLength Node_Reader where
+    type Get_DisplayNamePrefixLength_Ty Node_Reader = Word32
     getDisplayNamePrefixLength (Node_Reader struct) = L.getReaderNumericField struct 2
 
-instance HasDisplayNamePrefixLength Node_Builder where
-    type DisplayNamePrefixLengthTy Node_Builder = Word32
+instance Get_DisplayNamePrefixLength Node_Builder where
+    type Get_DisplayNamePrefixLength_Ty Node_Builder = Word32
     getDisplayNamePrefixLength (Node_Builder struct) = L.getBuilderNumericField struct 2
 
-instance HasScopeId Node_Reader where
-    type ScopeIdTy Node_Reader = Word64
+instance Get_ScopeId Node_Reader where
+    type Get_ScopeId_Ty Node_Reader = Word64
     getScopeId (Node_Reader struct) = L.getReaderNumericField struct 2
 
-instance HasScopeId Node_Builder where
-    type ScopeIdTy Node_Builder = Word64
+instance Get_ScopeId Node_Builder where
+    type Get_ScopeId_Ty Node_Builder = Word64
     getScopeId (Node_Builder struct) = L.getBuilderNumericField struct 2
 
-instance HasNestedNodes Node_Reader where
-    type NestedNodesTy Node_Reader = (L.ListReader Node_NestedNode_Reader)
+instance Get_NestedNodes Node_Reader where
+    type Get_NestedNodes_Ty Node_Reader = (L.ListReader Node_NestedNode_Reader)
     getNestedNodes (Node_Reader struct) = L.getReaderList (L.getReaderPointerField struct 1) nullPtr
 
-instance HasNestedNodes Node_Builder where
-    type NestedNodesTy Node_Builder = (L.ListBuilder Node_NestedNode_Builder)
+instance Get_NestedNodes Node_Builder where
+    type Get_NestedNodes_Ty Node_Builder = (L.ListBuilder Node_NestedNode_Builder)
     getNestedNodes (Node_Builder struct) = L.getBuilderList (L.getBuilderPointerField struct 1) nullPtr
 
-instance HasAnnotations Node_Reader where
-    type AnnotationsTy Node_Reader = (L.ListReader Annotation_Reader)
+instance Get_Annotations Node_Reader where
+    type Get_Annotations_Ty Node_Reader = (L.ListReader Annotation_Reader)
     getAnnotations (Node_Reader struct) = L.getReaderList (L.getReaderPointerField struct 2) nullPtr
 
-instance HasAnnotations Node_Builder where
-    type AnnotationsTy Node_Builder = (L.ListBuilder Annotation_Builder)
+instance Get_Annotations Node_Builder where
+    type Get_Annotations_Ty Node_Builder = (L.ListBuilder Annotation_Builder)
     getAnnotations (Node_Builder struct) = L.getBuilderList (L.getBuilderPointerField struct 2) nullPtr
 
-instance HasParameters Node_Reader where
-    type ParametersTy Node_Reader = (L.ListReader Node_Parameter_Reader)
+instance Get_Parameters Node_Reader where
+    type Get_Parameters_Ty Node_Reader = (L.ListReader Node_Parameter_Reader)
     getParameters (Node_Reader struct) = L.getReaderList (L.getReaderPointerField struct 5) nullPtr
 
-instance HasParameters Node_Builder where
-    type ParametersTy Node_Builder = (L.ListBuilder Node_Parameter_Builder)
+instance Get_Parameters Node_Builder where
+    type Get_Parameters_Ty Node_Builder = (L.ListBuilder Node_Parameter_Builder)
     getParameters (Node_Builder struct) = L.getBuilderList (L.getBuilderPointerField struct 5) nullPtr
 
-instance HasIsGeneric Node_Reader where
-    type IsGenericTy Node_Reader = Bool
+instance Get_IsGeneric Node_Reader where
+    type Get_IsGeneric_Ty Node_Reader = Bool
     getIsGeneric (Node_Reader struct) = L.getReaderBoolField struct 288
 
-instance HasIsGeneric Node_Builder where
-    type IsGenericTy Node_Builder = Bool
+instance Get_IsGeneric Node_Builder where
+    type Get_IsGeneric_Ty Node_Builder = Bool
     getIsGeneric (Node_Builder struct) = L.getBuilderBoolField struct 288
 
 data Node_Which_Reader
@@ -791,20 +791,20 @@ instance L.ListBuilderElement Node_NestedNode_Builder where
     setBuilderElement list index (Node_NestedNode_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
-instance HasName Node_NestedNode_Reader where
-    type NameTy Node_NestedNode_Reader = L.TextReader
+instance Get_Name Node_NestedNode_Reader where
+    type Get_Name_Ty Node_NestedNode_Reader = L.TextReader
     getName (Node_NestedNode_Reader struct) = L.getReaderText (L.getReaderPointerField struct 0) emptyString
 
-instance HasName Node_NestedNode_Builder where
-    type NameTy Node_NestedNode_Builder = L.TextBuilder
+instance Get_Name Node_NestedNode_Builder where
+    type Get_Name_Ty Node_NestedNode_Builder = L.TextBuilder
     getName (Node_NestedNode_Builder struct) = L.getBuilderText (L.getBuilderPointerField struct 0) emptyString
 
-instance HasId Node_NestedNode_Reader where
-    type IdTy Node_NestedNode_Reader = Word64
+instance Get_Id Node_NestedNode_Reader where
+    type Get_Id_Ty Node_NestedNode_Reader = Word64
     getId (Node_NestedNode_Reader struct) = L.getReaderNumericField struct 0
 
-instance HasId Node_NestedNode_Builder where
-    type IdTy Node_NestedNode_Builder = Word64
+instance Get_Id Node_NestedNode_Builder where
+    type Get_Id_Ty Node_NestedNode_Builder = Word64
     getId (Node_NestedNode_Builder struct) = L.getBuilderNumericField struct 0
 
 
@@ -830,232 +830,232 @@ instance L.ListBuilderElement Node_Parameter_Builder where
     setBuilderElement list index (Node_Parameter_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
-instance HasName Node_Parameter_Reader where
-    type NameTy Node_Parameter_Reader = L.TextReader
+instance Get_Name Node_Parameter_Reader where
+    type Get_Name_Ty Node_Parameter_Reader = L.TextReader
     getName (Node_Parameter_Reader struct) = L.getReaderText (L.getReaderPointerField struct 0) emptyString
 
-instance HasName Node_Parameter_Builder where
-    type NameTy Node_Parameter_Builder = L.TextBuilder
+instance Get_Name Node_Parameter_Builder where
+    type Get_Name_Ty Node_Parameter_Builder = L.TextBuilder
     getName (Node_Parameter_Builder struct) = L.getBuilderText (L.getBuilderPointerField struct 0) emptyString
 
 
 data Node_annotation_Reader = Node_annotation_Reader L.StructReader
 data Node_annotation_Builder = Node_annotation_Builder L.StructBuilder
 
-instance HasType Node_annotation_Reader where
-    type TypeTy Node_annotation_Reader = Type_Reader
+instance Get_Type Node_annotation_Reader where
+    type Get_Type_Ty Node_annotation_Reader = Type_Reader
     getType (Node_annotation_Reader struct) = fmap Type_Reader $ L.getReaderStruct (L.getReaderPointerField struct 3) nullPtr
 
-instance HasType Node_annotation_Builder where
-    type TypeTy Node_annotation_Builder = Type_Builder
+instance Get_Type Node_annotation_Builder where
+    type Get_Type_Ty Node_annotation_Builder = Type_Builder
     getType (Node_annotation_Builder struct) = fmap Type_Builder $ L.getBuilderStruct (L.getBuilderPointerField struct 3) (L.StructSize 5 6) nullPtr
 
-instance HasTargetsFile Node_annotation_Reader where
-    type TargetsFileTy Node_annotation_Reader = Bool
+instance Get_TargetsFile Node_annotation_Reader where
+    type Get_TargetsFile_Ty Node_annotation_Reader = Bool
     getTargetsFile (Node_annotation_Reader struct) = L.getReaderBoolField struct 112
 
-instance HasTargetsFile Node_annotation_Builder where
-    type TargetsFileTy Node_annotation_Builder = Bool
+instance Get_TargetsFile Node_annotation_Builder where
+    type Get_TargetsFile_Ty Node_annotation_Builder = Bool
     getTargetsFile (Node_annotation_Builder struct) = L.getBuilderBoolField struct 112
 
-instance HasTargetsConst Node_annotation_Reader where
-    type TargetsConstTy Node_annotation_Reader = Bool
+instance Get_TargetsConst Node_annotation_Reader where
+    type Get_TargetsConst_Ty Node_annotation_Reader = Bool
     getTargetsConst (Node_annotation_Reader struct) = L.getReaderBoolField struct 113
 
-instance HasTargetsConst Node_annotation_Builder where
-    type TargetsConstTy Node_annotation_Builder = Bool
+instance Get_TargetsConst Node_annotation_Builder where
+    type Get_TargetsConst_Ty Node_annotation_Builder = Bool
     getTargetsConst (Node_annotation_Builder struct) = L.getBuilderBoolField struct 113
 
-instance HasTargetsEnum Node_annotation_Reader where
-    type TargetsEnumTy Node_annotation_Reader = Bool
+instance Get_TargetsEnum Node_annotation_Reader where
+    type Get_TargetsEnum_Ty Node_annotation_Reader = Bool
     getTargetsEnum (Node_annotation_Reader struct) = L.getReaderBoolField struct 114
 
-instance HasTargetsEnum Node_annotation_Builder where
-    type TargetsEnumTy Node_annotation_Builder = Bool
+instance Get_TargetsEnum Node_annotation_Builder where
+    type Get_TargetsEnum_Ty Node_annotation_Builder = Bool
     getTargetsEnum (Node_annotation_Builder struct) = L.getBuilderBoolField struct 114
 
-instance HasTargetsEnumerant Node_annotation_Reader where
-    type TargetsEnumerantTy Node_annotation_Reader = Bool
+instance Get_TargetsEnumerant Node_annotation_Reader where
+    type Get_TargetsEnumerant_Ty Node_annotation_Reader = Bool
     getTargetsEnumerant (Node_annotation_Reader struct) = L.getReaderBoolField struct 115
 
-instance HasTargetsEnumerant Node_annotation_Builder where
-    type TargetsEnumerantTy Node_annotation_Builder = Bool
+instance Get_TargetsEnumerant Node_annotation_Builder where
+    type Get_TargetsEnumerant_Ty Node_annotation_Builder = Bool
     getTargetsEnumerant (Node_annotation_Builder struct) = L.getBuilderBoolField struct 115
 
-instance HasTargetsStruct Node_annotation_Reader where
-    type TargetsStructTy Node_annotation_Reader = Bool
+instance Get_TargetsStruct Node_annotation_Reader where
+    type Get_TargetsStruct_Ty Node_annotation_Reader = Bool
     getTargetsStruct (Node_annotation_Reader struct) = L.getReaderBoolField struct 116
 
-instance HasTargetsStruct Node_annotation_Builder where
-    type TargetsStructTy Node_annotation_Builder = Bool
+instance Get_TargetsStruct Node_annotation_Builder where
+    type Get_TargetsStruct_Ty Node_annotation_Builder = Bool
     getTargetsStruct (Node_annotation_Builder struct) = L.getBuilderBoolField struct 116
 
-instance HasTargetsField Node_annotation_Reader where
-    type TargetsFieldTy Node_annotation_Reader = Bool
+instance Get_TargetsField Node_annotation_Reader where
+    type Get_TargetsField_Ty Node_annotation_Reader = Bool
     getTargetsField (Node_annotation_Reader struct) = L.getReaderBoolField struct 117
 
-instance HasTargetsField Node_annotation_Builder where
-    type TargetsFieldTy Node_annotation_Builder = Bool
+instance Get_TargetsField Node_annotation_Builder where
+    type Get_TargetsField_Ty Node_annotation_Builder = Bool
     getTargetsField (Node_annotation_Builder struct) = L.getBuilderBoolField struct 117
 
-instance HasTargetsUnion Node_annotation_Reader where
-    type TargetsUnionTy Node_annotation_Reader = Bool
+instance Get_TargetsUnion Node_annotation_Reader where
+    type Get_TargetsUnion_Ty Node_annotation_Reader = Bool
     getTargetsUnion (Node_annotation_Reader struct) = L.getReaderBoolField struct 118
 
-instance HasTargetsUnion Node_annotation_Builder where
-    type TargetsUnionTy Node_annotation_Builder = Bool
+instance Get_TargetsUnion Node_annotation_Builder where
+    type Get_TargetsUnion_Ty Node_annotation_Builder = Bool
     getTargetsUnion (Node_annotation_Builder struct) = L.getBuilderBoolField struct 118
 
-instance HasTargetsGroup Node_annotation_Reader where
-    type TargetsGroupTy Node_annotation_Reader = Bool
+instance Get_TargetsGroup Node_annotation_Reader where
+    type Get_TargetsGroup_Ty Node_annotation_Reader = Bool
     getTargetsGroup (Node_annotation_Reader struct) = L.getReaderBoolField struct 119
 
-instance HasTargetsGroup Node_annotation_Builder where
-    type TargetsGroupTy Node_annotation_Builder = Bool
+instance Get_TargetsGroup Node_annotation_Builder where
+    type Get_TargetsGroup_Ty Node_annotation_Builder = Bool
     getTargetsGroup (Node_annotation_Builder struct) = L.getBuilderBoolField struct 119
 
-instance HasTargetsInterface Node_annotation_Reader where
-    type TargetsInterfaceTy Node_annotation_Reader = Bool
+instance Get_TargetsInterface Node_annotation_Reader where
+    type Get_TargetsInterface_Ty Node_annotation_Reader = Bool
     getTargetsInterface (Node_annotation_Reader struct) = L.getReaderBoolField struct 120
 
-instance HasTargetsInterface Node_annotation_Builder where
-    type TargetsInterfaceTy Node_annotation_Builder = Bool
+instance Get_TargetsInterface Node_annotation_Builder where
+    type Get_TargetsInterface_Ty Node_annotation_Builder = Bool
     getTargetsInterface (Node_annotation_Builder struct) = L.getBuilderBoolField struct 120
 
-instance HasTargetsMethod Node_annotation_Reader where
-    type TargetsMethodTy Node_annotation_Reader = Bool
+instance Get_TargetsMethod Node_annotation_Reader where
+    type Get_TargetsMethod_Ty Node_annotation_Reader = Bool
     getTargetsMethod (Node_annotation_Reader struct) = L.getReaderBoolField struct 121
 
-instance HasTargetsMethod Node_annotation_Builder where
-    type TargetsMethodTy Node_annotation_Builder = Bool
+instance Get_TargetsMethod Node_annotation_Builder where
+    type Get_TargetsMethod_Ty Node_annotation_Builder = Bool
     getTargetsMethod (Node_annotation_Builder struct) = L.getBuilderBoolField struct 121
 
-instance HasTargetsParam Node_annotation_Reader where
-    type TargetsParamTy Node_annotation_Reader = Bool
+instance Get_TargetsParam Node_annotation_Reader where
+    type Get_TargetsParam_Ty Node_annotation_Reader = Bool
     getTargetsParam (Node_annotation_Reader struct) = L.getReaderBoolField struct 122
 
-instance HasTargetsParam Node_annotation_Builder where
-    type TargetsParamTy Node_annotation_Builder = Bool
+instance Get_TargetsParam Node_annotation_Builder where
+    type Get_TargetsParam_Ty Node_annotation_Builder = Bool
     getTargetsParam (Node_annotation_Builder struct) = L.getBuilderBoolField struct 122
 
-instance HasTargetsAnnotation Node_annotation_Reader where
-    type TargetsAnnotationTy Node_annotation_Reader = Bool
+instance Get_TargetsAnnotation Node_annotation_Reader where
+    type Get_TargetsAnnotation_Ty Node_annotation_Reader = Bool
     getTargetsAnnotation (Node_annotation_Reader struct) = L.getReaderBoolField struct 123
 
-instance HasTargetsAnnotation Node_annotation_Builder where
-    type TargetsAnnotationTy Node_annotation_Builder = Bool
+instance Get_TargetsAnnotation Node_annotation_Builder where
+    type Get_TargetsAnnotation_Ty Node_annotation_Builder = Bool
     getTargetsAnnotation (Node_annotation_Builder struct) = L.getBuilderBoolField struct 123
 
 
 data Node_const_Reader = Node_const_Reader L.StructReader
 data Node_const_Builder = Node_const_Builder L.StructBuilder
 
-instance HasType Node_const_Reader where
-    type TypeTy Node_const_Reader = Type_Reader
+instance Get_Type Node_const_Reader where
+    type Get_Type_Ty Node_const_Reader = Type_Reader
     getType (Node_const_Reader struct) = fmap Type_Reader $ L.getReaderStruct (L.getReaderPointerField struct 3) nullPtr
 
-instance HasType Node_const_Builder where
-    type TypeTy Node_const_Builder = Type_Builder
+instance Get_Type Node_const_Builder where
+    type Get_Type_Ty Node_const_Builder = Type_Builder
     getType (Node_const_Builder struct) = fmap Type_Builder $ L.getBuilderStruct (L.getBuilderPointerField struct 3) (L.StructSize 5 6) nullPtr
 
-instance HasValue Node_const_Reader where
-    type ValueTy Node_const_Reader = Value_Reader
+instance Get_Value Node_const_Reader where
+    type Get_Value_Ty Node_const_Reader = Value_Reader
     getValue (Node_const_Reader struct) = fmap Value_Reader $ L.getReaderStruct (L.getReaderPointerField struct 4) nullPtr
 
-instance HasValue Node_const_Builder where
-    type ValueTy Node_const_Builder = Value_Builder
+instance Get_Value Node_const_Builder where
+    type Get_Value_Ty Node_const_Builder = Value_Builder
     getValue (Node_const_Builder struct) = fmap Value_Builder $ L.getBuilderStruct (L.getBuilderPointerField struct 4) (L.StructSize 5 6) nullPtr
 
 
 data Node_enum_Reader = Node_enum_Reader L.StructReader
 data Node_enum_Builder = Node_enum_Builder L.StructBuilder
 
-instance HasEnumerants Node_enum_Reader where
-    type EnumerantsTy Node_enum_Reader = (L.ListReader Enumerant_Reader)
+instance Get_Enumerants Node_enum_Reader where
+    type Get_Enumerants_Ty Node_enum_Reader = (L.ListReader Enumerant_Reader)
     getEnumerants (Node_enum_Reader struct) = L.getReaderList (L.getReaderPointerField struct 3) nullPtr
 
-instance HasEnumerants Node_enum_Builder where
-    type EnumerantsTy Node_enum_Builder = (L.ListBuilder Enumerant_Builder)
+instance Get_Enumerants Node_enum_Builder where
+    type Get_Enumerants_Ty Node_enum_Builder = (L.ListBuilder Enumerant_Builder)
     getEnumerants (Node_enum_Builder struct) = L.getBuilderList (L.getBuilderPointerField struct 3) nullPtr
 
 
 data Node_interface_Reader = Node_interface_Reader L.StructReader
 data Node_interface_Builder = Node_interface_Builder L.StructBuilder
 
-instance HasMethods Node_interface_Reader where
-    type MethodsTy Node_interface_Reader = (L.ListReader Method_Reader)
+instance Get_Methods Node_interface_Reader where
+    type Get_Methods_Ty Node_interface_Reader = (L.ListReader Method_Reader)
     getMethods (Node_interface_Reader struct) = L.getReaderList (L.getReaderPointerField struct 3) nullPtr
 
-instance HasMethods Node_interface_Builder where
-    type MethodsTy Node_interface_Builder = (L.ListBuilder Method_Builder)
+instance Get_Methods Node_interface_Builder where
+    type Get_Methods_Ty Node_interface_Builder = (L.ListBuilder Method_Builder)
     getMethods (Node_interface_Builder struct) = L.getBuilderList (L.getBuilderPointerField struct 3) nullPtr
 
-instance HasSuperclasses Node_interface_Reader where
-    type SuperclassesTy Node_interface_Reader = (L.ListReader Superclass_Reader)
+instance Get_Superclasses Node_interface_Reader where
+    type Get_Superclasses_Ty Node_interface_Reader = (L.ListReader Superclass_Reader)
     getSuperclasses (Node_interface_Reader struct) = L.getReaderList (L.getReaderPointerField struct 4) nullPtr
 
-instance HasSuperclasses Node_interface_Builder where
-    type SuperclassesTy Node_interface_Builder = (L.ListBuilder Superclass_Builder)
+instance Get_Superclasses Node_interface_Builder where
+    type Get_Superclasses_Ty Node_interface_Builder = (L.ListBuilder Superclass_Builder)
     getSuperclasses (Node_interface_Builder struct) = L.getBuilderList (L.getBuilderPointerField struct 4) nullPtr
 
 
 data Node_struct_Reader = Node_struct_Reader L.StructReader
 data Node_struct_Builder = Node_struct_Builder L.StructBuilder
 
-instance HasDataWordCount Node_struct_Reader where
-    type DataWordCountTy Node_struct_Reader = Word16
+instance Get_DataWordCount Node_struct_Reader where
+    type Get_DataWordCount_Ty Node_struct_Reader = Word16
     getDataWordCount (Node_struct_Reader struct) = L.getReaderNumericField struct 7
 
-instance HasDataWordCount Node_struct_Builder where
-    type DataWordCountTy Node_struct_Builder = Word16
+instance Get_DataWordCount Node_struct_Builder where
+    type Get_DataWordCount_Ty Node_struct_Builder = Word16
     getDataWordCount (Node_struct_Builder struct) = L.getBuilderNumericField struct 7
 
-instance HasPointerCount Node_struct_Reader where
-    type PointerCountTy Node_struct_Reader = Word16
+instance Get_PointerCount Node_struct_Reader where
+    type Get_PointerCount_Ty Node_struct_Reader = Word16
     getPointerCount (Node_struct_Reader struct) = L.getReaderNumericField struct 12
 
-instance HasPointerCount Node_struct_Builder where
-    type PointerCountTy Node_struct_Builder = Word16
+instance Get_PointerCount Node_struct_Builder where
+    type Get_PointerCount_Ty Node_struct_Builder = Word16
     getPointerCount (Node_struct_Builder struct) = L.getBuilderNumericField struct 12
 
-instance HasPreferredListEncoding Node_struct_Reader where
-    type PreferredListEncodingTy Node_struct_Reader = ElementSize
+instance Get_PreferredListEncoding Node_struct_Reader where
+    type Get_PreferredListEncoding_Ty Node_struct_Reader = ElementSize
     getPreferredListEncoding (Node_struct_Reader struct) = fmap (toEnum . fromIntegral) (L.getReaderNumericField struct 13 :: IO Word16)
 
-instance HasPreferredListEncoding Node_struct_Builder where
-    type PreferredListEncodingTy Node_struct_Builder = ElementSize
+instance Get_PreferredListEncoding Node_struct_Builder where
+    type Get_PreferredListEncoding_Ty Node_struct_Builder = ElementSize
     getPreferredListEncoding (Node_struct_Builder struct) = fmap (toEnum . fromIntegral) (L.getBuilderNumericField struct 13 :: IO Word16)
 
-instance HasIsGroup Node_struct_Reader where
-    type IsGroupTy Node_struct_Reader = Bool
+instance Get_IsGroup Node_struct_Reader where
+    type Get_IsGroup_Ty Node_struct_Reader = Bool
     getIsGroup (Node_struct_Reader struct) = L.getReaderBoolField struct 224
 
-instance HasIsGroup Node_struct_Builder where
-    type IsGroupTy Node_struct_Builder = Bool
+instance Get_IsGroup Node_struct_Builder where
+    type Get_IsGroup_Ty Node_struct_Builder = Bool
     getIsGroup (Node_struct_Builder struct) = L.getBuilderBoolField struct 224
 
-instance HasDiscriminantCount Node_struct_Reader where
-    type DiscriminantCountTy Node_struct_Reader = Word16
+instance Get_DiscriminantCount Node_struct_Reader where
+    type Get_DiscriminantCount_Ty Node_struct_Reader = Word16
     getDiscriminantCount (Node_struct_Reader struct) = L.getReaderNumericField struct 15
 
-instance HasDiscriminantCount Node_struct_Builder where
-    type DiscriminantCountTy Node_struct_Builder = Word16
+instance Get_DiscriminantCount Node_struct_Builder where
+    type Get_DiscriminantCount_Ty Node_struct_Builder = Word16
     getDiscriminantCount (Node_struct_Builder struct) = L.getBuilderNumericField struct 15
 
-instance HasDiscriminantOffset Node_struct_Reader where
-    type DiscriminantOffsetTy Node_struct_Reader = Word32
+instance Get_DiscriminantOffset Node_struct_Reader where
+    type Get_DiscriminantOffset_Ty Node_struct_Reader = Word32
     getDiscriminantOffset (Node_struct_Reader struct) = L.getReaderNumericField struct 8
 
-instance HasDiscriminantOffset Node_struct_Builder where
-    type DiscriminantOffsetTy Node_struct_Builder = Word32
+instance Get_DiscriminantOffset Node_struct_Builder where
+    type Get_DiscriminantOffset_Ty Node_struct_Builder = Word32
     getDiscriminantOffset (Node_struct_Builder struct) = L.getBuilderNumericField struct 8
 
-instance HasFields Node_struct_Reader where
-    type FieldsTy Node_struct_Reader = (L.ListReader Field_Reader)
+instance Get_Fields Node_struct_Reader where
+    type Get_Fields_Ty Node_struct_Reader = (L.ListReader Field_Reader)
     getFields (Node_struct_Reader struct) = L.getReaderList (L.getReaderPointerField struct 3) nullPtr
 
-instance HasFields Node_struct_Builder where
-    type FieldsTy Node_struct_Builder = (L.ListBuilder Field_Builder)
+instance Get_Fields Node_struct_Builder where
+    type Get_Fields_Ty Node_struct_Builder = (L.ListBuilder Field_Builder)
     getFields (Node_struct_Builder struct) = L.getBuilderList (L.getBuilderPointerField struct 3) nullPtr
 
 
@@ -1081,20 +1081,20 @@ instance L.ListBuilderElement Superclass_Builder where
     setBuilderElement list index (Superclass_Builder struct) =
         L.setBuilderElement (coerce list) index struct
 
-instance HasId Superclass_Reader where
-    type IdTy Superclass_Reader = Word64
+instance Get_Id Superclass_Reader where
+    type Get_Id_Ty Superclass_Reader = Word64
     getId (Superclass_Reader struct) = L.getReaderNumericField struct 0
 
-instance HasId Superclass_Builder where
-    type IdTy Superclass_Builder = Word64
+instance Get_Id Superclass_Builder where
+    type Get_Id_Ty Superclass_Builder = Word64
     getId (Superclass_Builder struct) = L.getBuilderNumericField struct 0
 
-instance HasBrand Superclass_Reader where
-    type BrandTy Superclass_Reader = Brand_Reader
+instance Get_Brand Superclass_Reader where
+    type Get_Brand_Ty Superclass_Reader = Brand_Reader
     getBrand (Superclass_Reader struct) = fmap Brand_Reader $ L.getReaderStruct (L.getReaderPointerField struct 0) nullPtr
 
-instance HasBrand Superclass_Builder where
-    type BrandTy Superclass_Builder = Brand_Builder
+instance Get_Brand Superclass_Builder where
+    type Get_Brand_Ty Superclass_Builder = Brand_Builder
     getBrand (Superclass_Builder struct) = fmap Brand_Builder $ L.getBuilderStruct (L.getBuilderPointerField struct 0) (L.StructSize 1 1) nullPtr
 
 
@@ -1256,104 +1256,104 @@ instance L.Union Type_anyPointer_Builder where
 data Type_anyPointer_implicitMethodParameter_Reader = Type_anyPointer_implicitMethodParameter_Reader L.StructReader
 data Type_anyPointer_implicitMethodParameter_Builder = Type_anyPointer_implicitMethodParameter_Builder L.StructBuilder
 
-instance HasParameterIndex Type_anyPointer_implicitMethodParameter_Reader where
-    type ParameterIndexTy Type_anyPointer_implicitMethodParameter_Reader = Word16
+instance Get_ParameterIndex Type_anyPointer_implicitMethodParameter_Reader where
+    type Get_ParameterIndex_Ty Type_anyPointer_implicitMethodParameter_Reader = Word16
     getParameterIndex (Type_anyPointer_implicitMethodParameter_Reader struct) = L.getReaderNumericField struct 5
 
-instance HasParameterIndex Type_anyPointer_implicitMethodParameter_Builder where
-    type ParameterIndexTy Type_anyPointer_implicitMethodParameter_Builder = Word16
+instance Get_ParameterIndex Type_anyPointer_implicitMethodParameter_Builder where
+    type Get_ParameterIndex_Ty Type_anyPointer_implicitMethodParameter_Builder = Word16
     getParameterIndex (Type_anyPointer_implicitMethodParameter_Builder struct) = L.getBuilderNumericField struct 5
 
 
 data Type_anyPointer_parameter_Reader = Type_anyPointer_parameter_Reader L.StructReader
 data Type_anyPointer_parameter_Builder = Type_anyPointer_parameter_Builder L.StructBuilder
 
-instance HasScopeId Type_anyPointer_parameter_Reader where
-    type ScopeIdTy Type_anyPointer_parameter_Reader = Word64
+instance Get_ScopeId Type_anyPointer_parameter_Reader where
+    type Get_ScopeId_Ty Type_anyPointer_parameter_Reader = Word64
     getScopeId (Type_anyPointer_parameter_Reader struct) = L.getReaderNumericField struct 2
 
-instance HasScopeId Type_anyPointer_parameter_Builder where
-    type ScopeIdTy Type_anyPointer_parameter_Builder = Word64
+instance Get_ScopeId Type_anyPointer_parameter_Builder where
+    type Get_ScopeId_Ty Type_anyPointer_parameter_Builder = Word64
     getScopeId (Type_anyPointer_parameter_Builder struct) = L.getBuilderNumericField struct 2
 
-instance HasParameterIndex Type_anyPointer_parameter_Reader where
-    type ParameterIndexTy Type_anyPointer_parameter_Reader = Word16
+instance Get_ParameterIndex Type_anyPointer_parameter_Reader where
+    type Get_ParameterIndex_Ty Type_anyPointer_parameter_Reader = Word16
     getParameterIndex (Type_anyPointer_parameter_Reader struct) = L.getReaderNumericField struct 5
 
-instance HasParameterIndex Type_anyPointer_parameter_Builder where
-    type ParameterIndexTy Type_anyPointer_parameter_Builder = Word16
+instance Get_ParameterIndex Type_anyPointer_parameter_Builder where
+    type Get_ParameterIndex_Ty Type_anyPointer_parameter_Builder = Word16
     getParameterIndex (Type_anyPointer_parameter_Builder struct) = L.getBuilderNumericField struct 5
 
 
 data Type_enum_Reader = Type_enum_Reader L.StructReader
 data Type_enum_Builder = Type_enum_Builder L.StructBuilder
 
-instance HasTypeId Type_enum_Reader where
-    type TypeIdTy Type_enum_Reader = Word64
+instance Get_TypeId Type_enum_Reader where
+    type Get_TypeId_Ty Type_enum_Reader = Word64
     getTypeId (Type_enum_Reader struct) = L.getReaderNumericField struct 1
 
-instance HasTypeId Type_enum_Builder where
-    type TypeIdTy Type_enum_Builder = Word64
+instance Get_TypeId Type_enum_Builder where
+    type Get_TypeId_Ty Type_enum_Builder = Word64
     getTypeId (Type_enum_Builder struct) = L.getBuilderNumericField struct 1
 
-instance HasBrand Type_enum_Reader where
-    type BrandTy Type_enum_Reader = Brand_Reader
+instance Get_Brand Type_enum_Reader where
+    type Get_Brand_Ty Type_enum_Reader = Brand_Reader
     getBrand (Type_enum_Reader struct) = fmap Brand_Reader $ L.getReaderStruct (L.getReaderPointerField struct 0) nullPtr
 
-instance HasBrand Type_enum_Builder where
-    type BrandTy Type_enum_Builder = Brand_Builder
+instance Get_Brand Type_enum_Builder where
+    type Get_Brand_Ty Type_enum_Builder = Brand_Builder
     getBrand (Type_enum_Builder struct) = fmap Brand_Builder $ L.getBuilderStruct (L.getBuilderPointerField struct 0) (L.StructSize 3 1) nullPtr
 
 
 data Type_interface_Reader = Type_interface_Reader L.StructReader
 data Type_interface_Builder = Type_interface_Builder L.StructBuilder
 
-instance HasTypeId Type_interface_Reader where
-    type TypeIdTy Type_interface_Reader = Word64
+instance Get_TypeId Type_interface_Reader where
+    type Get_TypeId_Ty Type_interface_Reader = Word64
     getTypeId (Type_interface_Reader struct) = L.getReaderNumericField struct 1
 
-instance HasTypeId Type_interface_Builder where
-    type TypeIdTy Type_interface_Builder = Word64
+instance Get_TypeId Type_interface_Builder where
+    type Get_TypeId_Ty Type_interface_Builder = Word64
     getTypeId (Type_interface_Builder struct) = L.getBuilderNumericField struct 1
 
-instance HasBrand Type_interface_Reader where
-    type BrandTy Type_interface_Reader = Brand_Reader
+instance Get_Brand Type_interface_Reader where
+    type Get_Brand_Ty Type_interface_Reader = Brand_Reader
     getBrand (Type_interface_Reader struct) = fmap Brand_Reader $ L.getReaderStruct (L.getReaderPointerField struct 0) nullPtr
 
-instance HasBrand Type_interface_Builder where
-    type BrandTy Type_interface_Builder = Brand_Builder
+instance Get_Brand Type_interface_Builder where
+    type Get_Brand_Ty Type_interface_Builder = Brand_Builder
     getBrand (Type_interface_Builder struct) = fmap Brand_Builder $ L.getBuilderStruct (L.getBuilderPointerField struct 0) (L.StructSize 3 1) nullPtr
 
 
 data Type_list_Reader = Type_list_Reader L.StructReader
 data Type_list_Builder = Type_list_Builder L.StructBuilder
 
-instance HasElementType Type_list_Reader where
-    type ElementTypeTy Type_list_Reader = Type_Reader
+instance Get_ElementType Type_list_Reader where
+    type Get_ElementType_Ty Type_list_Reader = Type_Reader
     getElementType (Type_list_Reader struct) = fmap Type_Reader $ L.getReaderStruct (L.getReaderPointerField struct 0) nullPtr
 
-instance HasElementType Type_list_Builder where
-    type ElementTypeTy Type_list_Builder = Type_Builder
+instance Get_ElementType Type_list_Builder where
+    type Get_ElementType_Ty Type_list_Builder = Type_Builder
     getElementType (Type_list_Builder struct) = fmap Type_Builder $ L.getBuilderStruct (L.getBuilderPointerField struct 0) (L.StructSize 3 1) nullPtr
 
 
 data Type_struct_Reader = Type_struct_Reader L.StructReader
 data Type_struct_Builder = Type_struct_Builder L.StructBuilder
 
-instance HasTypeId Type_struct_Reader where
-    type TypeIdTy Type_struct_Reader = Word64
+instance Get_TypeId Type_struct_Reader where
+    type Get_TypeId_Ty Type_struct_Reader = Word64
     getTypeId (Type_struct_Reader struct) = L.getReaderNumericField struct 1
 
-instance HasTypeId Type_struct_Builder where
-    type TypeIdTy Type_struct_Builder = Word64
+instance Get_TypeId Type_struct_Builder where
+    type Get_TypeId_Ty Type_struct_Builder = Word64
     getTypeId (Type_struct_Builder struct) = L.getBuilderNumericField struct 1
 
-instance HasBrand Type_struct_Reader where
-    type BrandTy Type_struct_Reader = Brand_Reader
+instance Get_Brand Type_struct_Reader where
+    type Get_Brand_Ty Type_struct_Reader = Brand_Reader
     getBrand (Type_struct_Reader struct) = fmap Brand_Reader $ L.getReaderStruct (L.getReaderPointerField struct 0) nullPtr
 
-instance HasBrand Type_struct_Builder where
-    type BrandTy Type_struct_Builder = Brand_Builder
+instance Get_Brand Type_struct_Builder where
+    type Get_Brand_Ty Type_struct_Builder = Brand_Builder
     getBrand (Type_struct_Builder struct) = fmap Brand_Builder $ L.getBuilderStruct (L.getBuilderPointerField struct 0) (L.StructSize 3 1) nullPtr
 
 
@@ -1530,217 +1530,853 @@ instance L.ListBuilderElement ElementSize where
         L.setBuilderElement (coerce list) index (fromIntegral . fromEnum $ val :: Word16)
 
 
-class HasAnnotations a where
-    type AnnotationsTy a :: *
-    getAnnotations :: a -> IO (AnnotationsTy a)
+class Get_Annotations a where
+    type Get_Annotations_Ty a :: *
+    getAnnotations :: a -> IO (Get_Annotations_Ty a)
 
-class HasBrand a where
-    type BrandTy a :: *
-    getBrand :: a -> IO (BrandTy a)
+class Set_Annotations a where
+    type Set_Annotations_Ty a :: *
+    setAnnotations :: a -> Set_Annotations_Ty a -> IO ()
 
-class HasCodeOrder a where
-    type CodeOrderTy a :: *
-    getCodeOrder :: a -> IO (CodeOrderTy a)
+class Init_Annotations a where
+    type Init_Annotations_Ty a :: *
+    initAnnotations :: a -> IO (Init_Annotations_Ty a)
 
-class HasDataWordCount a where
-    type DataWordCountTy a :: *
-    getDataWordCount :: a -> IO (DataWordCountTy a)
+class Initn_Annotations a where
+    type Initn_Annotations_Ty a :: *
+    initnAnnotations :: a -> Word32 -> IO (Initn_Annotations_Ty a)
 
-class HasDefaultValue a where
-    type DefaultValueTy a :: *
-    getDefaultValue :: a -> IO (DefaultValueTy a)
+class Get_Brand a where
+    type Get_Brand_Ty a :: *
+    getBrand :: a -> IO (Get_Brand_Ty a)
 
-class HasDiscriminantCount a where
-    type DiscriminantCountTy a :: *
-    getDiscriminantCount :: a -> IO (DiscriminantCountTy a)
+class Set_Brand a where
+    type Set_Brand_Ty a :: *
+    setBrand :: a -> Set_Brand_Ty a -> IO ()
 
-class HasDiscriminantOffset a where
-    type DiscriminantOffsetTy a :: *
-    getDiscriminantOffset :: a -> IO (DiscriminantOffsetTy a)
+class Init_Brand a where
+    type Init_Brand_Ty a :: *
+    initBrand :: a -> IO (Init_Brand_Ty a)
 
-class HasDiscriminantValue a where
-    type DiscriminantValueTy a :: *
-    getDiscriminantValue :: a -> IO (DiscriminantValueTy a)
+class Initn_Brand a where
+    type Initn_Brand_Ty a :: *
+    initnBrand :: a -> Word32 -> IO (Initn_Brand_Ty a)
 
-class HasDisplayName a where
-    type DisplayNameTy a :: *
-    getDisplayName :: a -> IO (DisplayNameTy a)
+class Get_CodeOrder a where
+    type Get_CodeOrder_Ty a :: *
+    getCodeOrder :: a -> IO (Get_CodeOrder_Ty a)
 
-class HasDisplayNamePrefixLength a where
-    type DisplayNamePrefixLengthTy a :: *
-    getDisplayNamePrefixLength :: a -> IO (DisplayNamePrefixLengthTy a)
+class Set_CodeOrder a where
+    type Set_CodeOrder_Ty a :: *
+    setCodeOrder :: a -> Set_CodeOrder_Ty a -> IO ()
 
-class HasElementType a where
-    type ElementTypeTy a :: *
-    getElementType :: a -> IO (ElementTypeTy a)
+class Init_CodeOrder a where
+    type Init_CodeOrder_Ty a :: *
+    initCodeOrder :: a -> IO (Init_CodeOrder_Ty a)
 
-class HasEnumerants a where
-    type EnumerantsTy a :: *
-    getEnumerants :: a -> IO (EnumerantsTy a)
+class Initn_CodeOrder a where
+    type Initn_CodeOrder_Ty a :: *
+    initnCodeOrder :: a -> Word32 -> IO (Initn_CodeOrder_Ty a)
 
-class HasFields a where
-    type FieldsTy a :: *
-    getFields :: a -> IO (FieldsTy a)
+class Get_DataWordCount a where
+    type Get_DataWordCount_Ty a :: *
+    getDataWordCount :: a -> IO (Get_DataWordCount_Ty a)
 
-class HasFilename a where
-    type FilenameTy a :: *
-    getFilename :: a -> IO (FilenameTy a)
+class Set_DataWordCount a where
+    type Set_DataWordCount_Ty a :: *
+    setDataWordCount :: a -> Set_DataWordCount_Ty a -> IO ()
 
-class HasHadExplicitDefault a where
-    type HadExplicitDefaultTy a :: *
-    getHadExplicitDefault :: a -> IO (HadExplicitDefaultTy a)
+class Init_DataWordCount a where
+    type Init_DataWordCount_Ty a :: *
+    initDataWordCount :: a -> IO (Init_DataWordCount_Ty a)
 
-class HasId a where
-    type IdTy a :: *
-    getId :: a -> IO (IdTy a)
+class Initn_DataWordCount a where
+    type Initn_DataWordCount_Ty a :: *
+    initnDataWordCount :: a -> Word32 -> IO (Initn_DataWordCount_Ty a)
 
-class HasImplicitParameters a where
-    type ImplicitParametersTy a :: *
-    getImplicitParameters :: a -> IO (ImplicitParametersTy a)
+class Get_DefaultValue a where
+    type Get_DefaultValue_Ty a :: *
+    getDefaultValue :: a -> IO (Get_DefaultValue_Ty a)
 
-class HasImports a where
-    type ImportsTy a :: *
-    getImports :: a -> IO (ImportsTy a)
+class Set_DefaultValue a where
+    type Set_DefaultValue_Ty a :: *
+    setDefaultValue :: a -> Set_DefaultValue_Ty a -> IO ()
 
-class HasIsGeneric a where
-    type IsGenericTy a :: *
-    getIsGeneric :: a -> IO (IsGenericTy a)
+class Init_DefaultValue a where
+    type Init_DefaultValue_Ty a :: *
+    initDefaultValue :: a -> IO (Init_DefaultValue_Ty a)
 
-class HasIsGroup a where
-    type IsGroupTy a :: *
-    getIsGroup :: a -> IO (IsGroupTy a)
+class Initn_DefaultValue a where
+    type Initn_DefaultValue_Ty a :: *
+    initnDefaultValue :: a -> Word32 -> IO (Initn_DefaultValue_Ty a)
 
-class HasMethods a where
-    type MethodsTy a :: *
-    getMethods :: a -> IO (MethodsTy a)
+class Get_DiscriminantCount a where
+    type Get_DiscriminantCount_Ty a :: *
+    getDiscriminantCount :: a -> IO (Get_DiscriminantCount_Ty a)
 
-class HasName a where
-    type NameTy a :: *
-    getName :: a -> IO (NameTy a)
+class Set_DiscriminantCount a where
+    type Set_DiscriminantCount_Ty a :: *
+    setDiscriminantCount :: a -> Set_DiscriminantCount_Ty a -> IO ()
 
-class HasNestedNodes a where
-    type NestedNodesTy a :: *
-    getNestedNodes :: a -> IO (NestedNodesTy a)
+class Init_DiscriminantCount a where
+    type Init_DiscriminantCount_Ty a :: *
+    initDiscriminantCount :: a -> IO (Init_DiscriminantCount_Ty a)
 
-class HasNodes a where
-    type NodesTy a :: *
-    getNodes :: a -> IO (NodesTy a)
+class Initn_DiscriminantCount a where
+    type Initn_DiscriminantCount_Ty a :: *
+    initnDiscriminantCount :: a -> Word32 -> IO (Initn_DiscriminantCount_Ty a)
 
-class HasOffset a where
-    type OffsetTy a :: *
-    getOffset :: a -> IO (OffsetTy a)
+class Get_DiscriminantOffset a where
+    type Get_DiscriminantOffset_Ty a :: *
+    getDiscriminantOffset :: a -> IO (Get_DiscriminantOffset_Ty a)
 
-class HasOrdinal a where
-    type OrdinalTy a :: *
-    getOrdinal :: a -> IO (OrdinalTy a)
+class Set_DiscriminantOffset a where
+    type Set_DiscriminantOffset_Ty a :: *
+    setDiscriminantOffset :: a -> Set_DiscriminantOffset_Ty a -> IO ()
 
-class HasParamBrand a where
-    type ParamBrandTy a :: *
-    getParamBrand :: a -> IO (ParamBrandTy a)
+class Init_DiscriminantOffset a where
+    type Init_DiscriminantOffset_Ty a :: *
+    initDiscriminantOffset :: a -> IO (Init_DiscriminantOffset_Ty a)
 
-class HasParamStructType a where
-    type ParamStructTypeTy a :: *
-    getParamStructType :: a -> IO (ParamStructTypeTy a)
+class Initn_DiscriminantOffset a where
+    type Initn_DiscriminantOffset_Ty a :: *
+    initnDiscriminantOffset :: a -> Word32 -> IO (Initn_DiscriminantOffset_Ty a)
 
-class HasParameterIndex a where
-    type ParameterIndexTy a :: *
-    getParameterIndex :: a -> IO (ParameterIndexTy a)
+class Get_DiscriminantValue a where
+    type Get_DiscriminantValue_Ty a :: *
+    getDiscriminantValue :: a -> IO (Get_DiscriminantValue_Ty a)
 
-class HasParameters a where
-    type ParametersTy a :: *
-    getParameters :: a -> IO (ParametersTy a)
+class Set_DiscriminantValue a where
+    type Set_DiscriminantValue_Ty a :: *
+    setDiscriminantValue :: a -> Set_DiscriminantValue_Ty a -> IO ()
 
-class HasPointerCount a where
-    type PointerCountTy a :: *
-    getPointerCount :: a -> IO (PointerCountTy a)
+class Init_DiscriminantValue a where
+    type Init_DiscriminantValue_Ty a :: *
+    initDiscriminantValue :: a -> IO (Init_DiscriminantValue_Ty a)
 
-class HasPreferredListEncoding a where
-    type PreferredListEncodingTy a :: *
-    getPreferredListEncoding :: a -> IO (PreferredListEncodingTy a)
+class Initn_DiscriminantValue a where
+    type Initn_DiscriminantValue_Ty a :: *
+    initnDiscriminantValue :: a -> Word32 -> IO (Initn_DiscriminantValue_Ty a)
 
-class HasRequestedFiles a where
-    type RequestedFilesTy a :: *
-    getRequestedFiles :: a -> IO (RequestedFilesTy a)
+class Get_DisplayName a where
+    type Get_DisplayName_Ty a :: *
+    getDisplayName :: a -> IO (Get_DisplayName_Ty a)
 
-class HasResultBrand a where
-    type ResultBrandTy a :: *
-    getResultBrand :: a -> IO (ResultBrandTy a)
+class Set_DisplayName a where
+    type Set_DisplayName_Ty a :: *
+    setDisplayName :: a -> Set_DisplayName_Ty a -> IO ()
 
-class HasResultStructType a where
-    type ResultStructTypeTy a :: *
-    getResultStructType :: a -> IO (ResultStructTypeTy a)
+class Init_DisplayName a where
+    type Init_DisplayName_Ty a :: *
+    initDisplayName :: a -> IO (Init_DisplayName_Ty a)
 
-class HasScopeId a where
-    type ScopeIdTy a :: *
-    getScopeId :: a -> IO (ScopeIdTy a)
+class Initn_DisplayName a where
+    type Initn_DisplayName_Ty a :: *
+    initnDisplayName :: a -> Word32 -> IO (Initn_DisplayName_Ty a)
 
-class HasScopes a where
-    type ScopesTy a :: *
-    getScopes :: a -> IO (ScopesTy a)
+class Get_DisplayNamePrefixLength a where
+    type Get_DisplayNamePrefixLength_Ty a :: *
+    getDisplayNamePrefixLength :: a -> IO (Get_DisplayNamePrefixLength_Ty a)
 
-class HasSuperclasses a where
-    type SuperclassesTy a :: *
-    getSuperclasses :: a -> IO (SuperclassesTy a)
+class Set_DisplayNamePrefixLength a where
+    type Set_DisplayNamePrefixLength_Ty a :: *
+    setDisplayNamePrefixLength :: a -> Set_DisplayNamePrefixLength_Ty a -> IO ()
 
-class HasTargetsAnnotation a where
-    type TargetsAnnotationTy a :: *
-    getTargetsAnnotation :: a -> IO (TargetsAnnotationTy a)
+class Init_DisplayNamePrefixLength a where
+    type Init_DisplayNamePrefixLength_Ty a :: *
+    initDisplayNamePrefixLength :: a -> IO (Init_DisplayNamePrefixLength_Ty a)
 
-class HasTargetsConst a where
-    type TargetsConstTy a :: *
-    getTargetsConst :: a -> IO (TargetsConstTy a)
+class Initn_DisplayNamePrefixLength a where
+    type Initn_DisplayNamePrefixLength_Ty a :: *
+    initnDisplayNamePrefixLength :: a -> Word32 -> IO (Initn_DisplayNamePrefixLength_Ty a)
 
-class HasTargetsEnum a where
-    type TargetsEnumTy a :: *
-    getTargetsEnum :: a -> IO (TargetsEnumTy a)
+class Get_ElementType a where
+    type Get_ElementType_Ty a :: *
+    getElementType :: a -> IO (Get_ElementType_Ty a)
 
-class HasTargetsEnumerant a where
-    type TargetsEnumerantTy a :: *
-    getTargetsEnumerant :: a -> IO (TargetsEnumerantTy a)
+class Set_ElementType a where
+    type Set_ElementType_Ty a :: *
+    setElementType :: a -> Set_ElementType_Ty a -> IO ()
 
-class HasTargetsField a where
-    type TargetsFieldTy a :: *
-    getTargetsField :: a -> IO (TargetsFieldTy a)
+class Init_ElementType a where
+    type Init_ElementType_Ty a :: *
+    initElementType :: a -> IO (Init_ElementType_Ty a)
 
-class HasTargetsFile a where
-    type TargetsFileTy a :: *
-    getTargetsFile :: a -> IO (TargetsFileTy a)
+class Initn_ElementType a where
+    type Initn_ElementType_Ty a :: *
+    initnElementType :: a -> Word32 -> IO (Initn_ElementType_Ty a)
 
-class HasTargetsGroup a where
-    type TargetsGroupTy a :: *
-    getTargetsGroup :: a -> IO (TargetsGroupTy a)
+class Get_Enumerants a where
+    type Get_Enumerants_Ty a :: *
+    getEnumerants :: a -> IO (Get_Enumerants_Ty a)
 
-class HasTargetsInterface a where
-    type TargetsInterfaceTy a :: *
-    getTargetsInterface :: a -> IO (TargetsInterfaceTy a)
+class Set_Enumerants a where
+    type Set_Enumerants_Ty a :: *
+    setEnumerants :: a -> Set_Enumerants_Ty a -> IO ()
 
-class HasTargetsMethod a where
-    type TargetsMethodTy a :: *
-    getTargetsMethod :: a -> IO (TargetsMethodTy a)
+class Init_Enumerants a where
+    type Init_Enumerants_Ty a :: *
+    initEnumerants :: a -> IO (Init_Enumerants_Ty a)
 
-class HasTargetsParam a where
-    type TargetsParamTy a :: *
-    getTargetsParam :: a -> IO (TargetsParamTy a)
+class Initn_Enumerants a where
+    type Initn_Enumerants_Ty a :: *
+    initnEnumerants :: a -> Word32 -> IO (Initn_Enumerants_Ty a)
 
-class HasTargetsStruct a where
-    type TargetsStructTy a :: *
-    getTargetsStruct :: a -> IO (TargetsStructTy a)
+class Get_Fields a where
+    type Get_Fields_Ty a :: *
+    getFields :: a -> IO (Get_Fields_Ty a)
 
-class HasTargetsUnion a where
-    type TargetsUnionTy a :: *
-    getTargetsUnion :: a -> IO (TargetsUnionTy a)
+class Set_Fields a where
+    type Set_Fields_Ty a :: *
+    setFields :: a -> Set_Fields_Ty a -> IO ()
 
-class HasType a where
-    type TypeTy a :: *
-    getType :: a -> IO (TypeTy a)
+class Init_Fields a where
+    type Init_Fields_Ty a :: *
+    initFields :: a -> IO (Init_Fields_Ty a)
 
-class HasTypeId a where
-    type TypeIdTy a :: *
-    getTypeId :: a -> IO (TypeIdTy a)
+class Initn_Fields a where
+    type Initn_Fields_Ty a :: *
+    initnFields :: a -> Word32 -> IO (Initn_Fields_Ty a)
 
-class HasValue a where
-    type ValueTy a :: *
-    getValue :: a -> IO (ValueTy a)
+class Get_Filename a where
+    type Get_Filename_Ty a :: *
+    getFilename :: a -> IO (Get_Filename_Ty a)
+
+class Set_Filename a where
+    type Set_Filename_Ty a :: *
+    setFilename :: a -> Set_Filename_Ty a -> IO ()
+
+class Init_Filename a where
+    type Init_Filename_Ty a :: *
+    initFilename :: a -> IO (Init_Filename_Ty a)
+
+class Initn_Filename a where
+    type Initn_Filename_Ty a :: *
+    initnFilename :: a -> Word32 -> IO (Initn_Filename_Ty a)
+
+class Get_HadExplicitDefault a where
+    type Get_HadExplicitDefault_Ty a :: *
+    getHadExplicitDefault :: a -> IO (Get_HadExplicitDefault_Ty a)
+
+class Set_HadExplicitDefault a where
+    type Set_HadExplicitDefault_Ty a :: *
+    setHadExplicitDefault :: a -> Set_HadExplicitDefault_Ty a -> IO ()
+
+class Init_HadExplicitDefault a where
+    type Init_HadExplicitDefault_Ty a :: *
+    initHadExplicitDefault :: a -> IO (Init_HadExplicitDefault_Ty a)
+
+class Initn_HadExplicitDefault a where
+    type Initn_HadExplicitDefault_Ty a :: *
+    initnHadExplicitDefault :: a -> Word32 -> IO (Initn_HadExplicitDefault_Ty a)
+
+class Get_Id a where
+    type Get_Id_Ty a :: *
+    getId :: a -> IO (Get_Id_Ty a)
+
+class Set_Id a where
+    type Set_Id_Ty a :: *
+    setId :: a -> Set_Id_Ty a -> IO ()
+
+class Init_Id a where
+    type Init_Id_Ty a :: *
+    initId :: a -> IO (Init_Id_Ty a)
+
+class Initn_Id a where
+    type Initn_Id_Ty a :: *
+    initnId :: a -> Word32 -> IO (Initn_Id_Ty a)
+
+class Get_ImplicitParameters a where
+    type Get_ImplicitParameters_Ty a :: *
+    getImplicitParameters :: a -> IO (Get_ImplicitParameters_Ty a)
+
+class Set_ImplicitParameters a where
+    type Set_ImplicitParameters_Ty a :: *
+    setImplicitParameters :: a -> Set_ImplicitParameters_Ty a -> IO ()
+
+class Init_ImplicitParameters a where
+    type Init_ImplicitParameters_Ty a :: *
+    initImplicitParameters :: a -> IO (Init_ImplicitParameters_Ty a)
+
+class Initn_ImplicitParameters a where
+    type Initn_ImplicitParameters_Ty a :: *
+    initnImplicitParameters :: a -> Word32 -> IO (Initn_ImplicitParameters_Ty a)
+
+class Get_Imports a where
+    type Get_Imports_Ty a :: *
+    getImports :: a -> IO (Get_Imports_Ty a)
+
+class Set_Imports a where
+    type Set_Imports_Ty a :: *
+    setImports :: a -> Set_Imports_Ty a -> IO ()
+
+class Init_Imports a where
+    type Init_Imports_Ty a :: *
+    initImports :: a -> IO (Init_Imports_Ty a)
+
+class Initn_Imports a where
+    type Initn_Imports_Ty a :: *
+    initnImports :: a -> Word32 -> IO (Initn_Imports_Ty a)
+
+class Get_IsGeneric a where
+    type Get_IsGeneric_Ty a :: *
+    getIsGeneric :: a -> IO (Get_IsGeneric_Ty a)
+
+class Set_IsGeneric a where
+    type Set_IsGeneric_Ty a :: *
+    setIsGeneric :: a -> Set_IsGeneric_Ty a -> IO ()
+
+class Init_IsGeneric a where
+    type Init_IsGeneric_Ty a :: *
+    initIsGeneric :: a -> IO (Init_IsGeneric_Ty a)
+
+class Initn_IsGeneric a where
+    type Initn_IsGeneric_Ty a :: *
+    initnIsGeneric :: a -> Word32 -> IO (Initn_IsGeneric_Ty a)
+
+class Get_IsGroup a where
+    type Get_IsGroup_Ty a :: *
+    getIsGroup :: a -> IO (Get_IsGroup_Ty a)
+
+class Set_IsGroup a where
+    type Set_IsGroup_Ty a :: *
+    setIsGroup :: a -> Set_IsGroup_Ty a -> IO ()
+
+class Init_IsGroup a where
+    type Init_IsGroup_Ty a :: *
+    initIsGroup :: a -> IO (Init_IsGroup_Ty a)
+
+class Initn_IsGroup a where
+    type Initn_IsGroup_Ty a :: *
+    initnIsGroup :: a -> Word32 -> IO (Initn_IsGroup_Ty a)
+
+class Get_Methods a where
+    type Get_Methods_Ty a :: *
+    getMethods :: a -> IO (Get_Methods_Ty a)
+
+class Set_Methods a where
+    type Set_Methods_Ty a :: *
+    setMethods :: a -> Set_Methods_Ty a -> IO ()
+
+class Init_Methods a where
+    type Init_Methods_Ty a :: *
+    initMethods :: a -> IO (Init_Methods_Ty a)
+
+class Initn_Methods a where
+    type Initn_Methods_Ty a :: *
+    initnMethods :: a -> Word32 -> IO (Initn_Methods_Ty a)
+
+class Get_Name a where
+    type Get_Name_Ty a :: *
+    getName :: a -> IO (Get_Name_Ty a)
+
+class Set_Name a where
+    type Set_Name_Ty a :: *
+    setName :: a -> Set_Name_Ty a -> IO ()
+
+class Init_Name a where
+    type Init_Name_Ty a :: *
+    initName :: a -> IO (Init_Name_Ty a)
+
+class Initn_Name a where
+    type Initn_Name_Ty a :: *
+    initnName :: a -> Word32 -> IO (Initn_Name_Ty a)
+
+class Get_NestedNodes a where
+    type Get_NestedNodes_Ty a :: *
+    getNestedNodes :: a -> IO (Get_NestedNodes_Ty a)
+
+class Set_NestedNodes a where
+    type Set_NestedNodes_Ty a :: *
+    setNestedNodes :: a -> Set_NestedNodes_Ty a -> IO ()
+
+class Init_NestedNodes a where
+    type Init_NestedNodes_Ty a :: *
+    initNestedNodes :: a -> IO (Init_NestedNodes_Ty a)
+
+class Initn_NestedNodes a where
+    type Initn_NestedNodes_Ty a :: *
+    initnNestedNodes :: a -> Word32 -> IO (Initn_NestedNodes_Ty a)
+
+class Get_Nodes a where
+    type Get_Nodes_Ty a :: *
+    getNodes :: a -> IO (Get_Nodes_Ty a)
+
+class Set_Nodes a where
+    type Set_Nodes_Ty a :: *
+    setNodes :: a -> Set_Nodes_Ty a -> IO ()
+
+class Init_Nodes a where
+    type Init_Nodes_Ty a :: *
+    initNodes :: a -> IO (Init_Nodes_Ty a)
+
+class Initn_Nodes a where
+    type Initn_Nodes_Ty a :: *
+    initnNodes :: a -> Word32 -> IO (Initn_Nodes_Ty a)
+
+class Get_Offset a where
+    type Get_Offset_Ty a :: *
+    getOffset :: a -> IO (Get_Offset_Ty a)
+
+class Set_Offset a where
+    type Set_Offset_Ty a :: *
+    setOffset :: a -> Set_Offset_Ty a -> IO ()
+
+class Init_Offset a where
+    type Init_Offset_Ty a :: *
+    initOffset :: a -> IO (Init_Offset_Ty a)
+
+class Initn_Offset a where
+    type Initn_Offset_Ty a :: *
+    initnOffset :: a -> Word32 -> IO (Initn_Offset_Ty a)
+
+class Get_Ordinal a where
+    type Get_Ordinal_Ty a :: *
+    getOrdinal :: a -> IO (Get_Ordinal_Ty a)
+
+class Set_Ordinal a where
+    type Set_Ordinal_Ty a :: *
+    setOrdinal :: a -> Set_Ordinal_Ty a -> IO ()
+
+class Init_Ordinal a where
+    type Init_Ordinal_Ty a :: *
+    initOrdinal :: a -> IO (Init_Ordinal_Ty a)
+
+class Initn_Ordinal a where
+    type Initn_Ordinal_Ty a :: *
+    initnOrdinal :: a -> Word32 -> IO (Initn_Ordinal_Ty a)
+
+class Get_ParamBrand a where
+    type Get_ParamBrand_Ty a :: *
+    getParamBrand :: a -> IO (Get_ParamBrand_Ty a)
+
+class Set_ParamBrand a where
+    type Set_ParamBrand_Ty a :: *
+    setParamBrand :: a -> Set_ParamBrand_Ty a -> IO ()
+
+class Init_ParamBrand a where
+    type Init_ParamBrand_Ty a :: *
+    initParamBrand :: a -> IO (Init_ParamBrand_Ty a)
+
+class Initn_ParamBrand a where
+    type Initn_ParamBrand_Ty a :: *
+    initnParamBrand :: a -> Word32 -> IO (Initn_ParamBrand_Ty a)
+
+class Get_ParamStructType a where
+    type Get_ParamStructType_Ty a :: *
+    getParamStructType :: a -> IO (Get_ParamStructType_Ty a)
+
+class Set_ParamStructType a where
+    type Set_ParamStructType_Ty a :: *
+    setParamStructType :: a -> Set_ParamStructType_Ty a -> IO ()
+
+class Init_ParamStructType a where
+    type Init_ParamStructType_Ty a :: *
+    initParamStructType :: a -> IO (Init_ParamStructType_Ty a)
+
+class Initn_ParamStructType a where
+    type Initn_ParamStructType_Ty a :: *
+    initnParamStructType :: a -> Word32 -> IO (Initn_ParamStructType_Ty a)
+
+class Get_ParameterIndex a where
+    type Get_ParameterIndex_Ty a :: *
+    getParameterIndex :: a -> IO (Get_ParameterIndex_Ty a)
+
+class Set_ParameterIndex a where
+    type Set_ParameterIndex_Ty a :: *
+    setParameterIndex :: a -> Set_ParameterIndex_Ty a -> IO ()
+
+class Init_ParameterIndex a where
+    type Init_ParameterIndex_Ty a :: *
+    initParameterIndex :: a -> IO (Init_ParameterIndex_Ty a)
+
+class Initn_ParameterIndex a where
+    type Initn_ParameterIndex_Ty a :: *
+    initnParameterIndex :: a -> Word32 -> IO (Initn_ParameterIndex_Ty a)
+
+class Get_Parameters a where
+    type Get_Parameters_Ty a :: *
+    getParameters :: a -> IO (Get_Parameters_Ty a)
+
+class Set_Parameters a where
+    type Set_Parameters_Ty a :: *
+    setParameters :: a -> Set_Parameters_Ty a -> IO ()
+
+class Init_Parameters a where
+    type Init_Parameters_Ty a :: *
+    initParameters :: a -> IO (Init_Parameters_Ty a)
+
+class Initn_Parameters a where
+    type Initn_Parameters_Ty a :: *
+    initnParameters :: a -> Word32 -> IO (Initn_Parameters_Ty a)
+
+class Get_PointerCount a where
+    type Get_PointerCount_Ty a :: *
+    getPointerCount :: a -> IO (Get_PointerCount_Ty a)
+
+class Set_PointerCount a where
+    type Set_PointerCount_Ty a :: *
+    setPointerCount :: a -> Set_PointerCount_Ty a -> IO ()
+
+class Init_PointerCount a where
+    type Init_PointerCount_Ty a :: *
+    initPointerCount :: a -> IO (Init_PointerCount_Ty a)
+
+class Initn_PointerCount a where
+    type Initn_PointerCount_Ty a :: *
+    initnPointerCount :: a -> Word32 -> IO (Initn_PointerCount_Ty a)
+
+class Get_PreferredListEncoding a where
+    type Get_PreferredListEncoding_Ty a :: *
+    getPreferredListEncoding :: a -> IO (Get_PreferredListEncoding_Ty a)
+
+class Set_PreferredListEncoding a where
+    type Set_PreferredListEncoding_Ty a :: *
+    setPreferredListEncoding :: a -> Set_PreferredListEncoding_Ty a -> IO ()
+
+class Init_PreferredListEncoding a where
+    type Init_PreferredListEncoding_Ty a :: *
+    initPreferredListEncoding :: a -> IO (Init_PreferredListEncoding_Ty a)
+
+class Initn_PreferredListEncoding a where
+    type Initn_PreferredListEncoding_Ty a :: *
+    initnPreferredListEncoding :: a -> Word32 -> IO (Initn_PreferredListEncoding_Ty a)
+
+class Get_RequestedFiles a where
+    type Get_RequestedFiles_Ty a :: *
+    getRequestedFiles :: a -> IO (Get_RequestedFiles_Ty a)
+
+class Set_RequestedFiles a where
+    type Set_RequestedFiles_Ty a :: *
+    setRequestedFiles :: a -> Set_RequestedFiles_Ty a -> IO ()
+
+class Init_RequestedFiles a where
+    type Init_RequestedFiles_Ty a :: *
+    initRequestedFiles :: a -> IO (Init_RequestedFiles_Ty a)
+
+class Initn_RequestedFiles a where
+    type Initn_RequestedFiles_Ty a :: *
+    initnRequestedFiles :: a -> Word32 -> IO (Initn_RequestedFiles_Ty a)
+
+class Get_ResultBrand a where
+    type Get_ResultBrand_Ty a :: *
+    getResultBrand :: a -> IO (Get_ResultBrand_Ty a)
+
+class Set_ResultBrand a where
+    type Set_ResultBrand_Ty a :: *
+    setResultBrand :: a -> Set_ResultBrand_Ty a -> IO ()
+
+class Init_ResultBrand a where
+    type Init_ResultBrand_Ty a :: *
+    initResultBrand :: a -> IO (Init_ResultBrand_Ty a)
+
+class Initn_ResultBrand a where
+    type Initn_ResultBrand_Ty a :: *
+    initnResultBrand :: a -> Word32 -> IO (Initn_ResultBrand_Ty a)
+
+class Get_ResultStructType a where
+    type Get_ResultStructType_Ty a :: *
+    getResultStructType :: a -> IO (Get_ResultStructType_Ty a)
+
+class Set_ResultStructType a where
+    type Set_ResultStructType_Ty a :: *
+    setResultStructType :: a -> Set_ResultStructType_Ty a -> IO ()
+
+class Init_ResultStructType a where
+    type Init_ResultStructType_Ty a :: *
+    initResultStructType :: a -> IO (Init_ResultStructType_Ty a)
+
+class Initn_ResultStructType a where
+    type Initn_ResultStructType_Ty a :: *
+    initnResultStructType :: a -> Word32 -> IO (Initn_ResultStructType_Ty a)
+
+class Get_ScopeId a where
+    type Get_ScopeId_Ty a :: *
+    getScopeId :: a -> IO (Get_ScopeId_Ty a)
+
+class Set_ScopeId a where
+    type Set_ScopeId_Ty a :: *
+    setScopeId :: a -> Set_ScopeId_Ty a -> IO ()
+
+class Init_ScopeId a where
+    type Init_ScopeId_Ty a :: *
+    initScopeId :: a -> IO (Init_ScopeId_Ty a)
+
+class Initn_ScopeId a where
+    type Initn_ScopeId_Ty a :: *
+    initnScopeId :: a -> Word32 -> IO (Initn_ScopeId_Ty a)
+
+class Get_Scopes a where
+    type Get_Scopes_Ty a :: *
+    getScopes :: a -> IO (Get_Scopes_Ty a)
+
+class Set_Scopes a where
+    type Set_Scopes_Ty a :: *
+    setScopes :: a -> Set_Scopes_Ty a -> IO ()
+
+class Init_Scopes a where
+    type Init_Scopes_Ty a :: *
+    initScopes :: a -> IO (Init_Scopes_Ty a)
+
+class Initn_Scopes a where
+    type Initn_Scopes_Ty a :: *
+    initnScopes :: a -> Word32 -> IO (Initn_Scopes_Ty a)
+
+class Get_Superclasses a where
+    type Get_Superclasses_Ty a :: *
+    getSuperclasses :: a -> IO (Get_Superclasses_Ty a)
+
+class Set_Superclasses a where
+    type Set_Superclasses_Ty a :: *
+    setSuperclasses :: a -> Set_Superclasses_Ty a -> IO ()
+
+class Init_Superclasses a where
+    type Init_Superclasses_Ty a :: *
+    initSuperclasses :: a -> IO (Init_Superclasses_Ty a)
+
+class Initn_Superclasses a where
+    type Initn_Superclasses_Ty a :: *
+    initnSuperclasses :: a -> Word32 -> IO (Initn_Superclasses_Ty a)
+
+class Get_TargetsAnnotation a where
+    type Get_TargetsAnnotation_Ty a :: *
+    getTargetsAnnotation :: a -> IO (Get_TargetsAnnotation_Ty a)
+
+class Set_TargetsAnnotation a where
+    type Set_TargetsAnnotation_Ty a :: *
+    setTargetsAnnotation :: a -> Set_TargetsAnnotation_Ty a -> IO ()
+
+class Init_TargetsAnnotation a where
+    type Init_TargetsAnnotation_Ty a :: *
+    initTargetsAnnotation :: a -> IO (Init_TargetsAnnotation_Ty a)
+
+class Initn_TargetsAnnotation a where
+    type Initn_TargetsAnnotation_Ty a :: *
+    initnTargetsAnnotation :: a -> Word32 -> IO (Initn_TargetsAnnotation_Ty a)
+
+class Get_TargetsConst a where
+    type Get_TargetsConst_Ty a :: *
+    getTargetsConst :: a -> IO (Get_TargetsConst_Ty a)
+
+class Set_TargetsConst a where
+    type Set_TargetsConst_Ty a :: *
+    setTargetsConst :: a -> Set_TargetsConst_Ty a -> IO ()
+
+class Init_TargetsConst a where
+    type Init_TargetsConst_Ty a :: *
+    initTargetsConst :: a -> IO (Init_TargetsConst_Ty a)
+
+class Initn_TargetsConst a where
+    type Initn_TargetsConst_Ty a :: *
+    initnTargetsConst :: a -> Word32 -> IO (Initn_TargetsConst_Ty a)
+
+class Get_TargetsEnum a where
+    type Get_TargetsEnum_Ty a :: *
+    getTargetsEnum :: a -> IO (Get_TargetsEnum_Ty a)
+
+class Set_TargetsEnum a where
+    type Set_TargetsEnum_Ty a :: *
+    setTargetsEnum :: a -> Set_TargetsEnum_Ty a -> IO ()
+
+class Init_TargetsEnum a where
+    type Init_TargetsEnum_Ty a :: *
+    initTargetsEnum :: a -> IO (Init_TargetsEnum_Ty a)
+
+class Initn_TargetsEnum a where
+    type Initn_TargetsEnum_Ty a :: *
+    initnTargetsEnum :: a -> Word32 -> IO (Initn_TargetsEnum_Ty a)
+
+class Get_TargetsEnumerant a where
+    type Get_TargetsEnumerant_Ty a :: *
+    getTargetsEnumerant :: a -> IO (Get_TargetsEnumerant_Ty a)
+
+class Set_TargetsEnumerant a where
+    type Set_TargetsEnumerant_Ty a :: *
+    setTargetsEnumerant :: a -> Set_TargetsEnumerant_Ty a -> IO ()
+
+class Init_TargetsEnumerant a where
+    type Init_TargetsEnumerant_Ty a :: *
+    initTargetsEnumerant :: a -> IO (Init_TargetsEnumerant_Ty a)
+
+class Initn_TargetsEnumerant a where
+    type Initn_TargetsEnumerant_Ty a :: *
+    initnTargetsEnumerant :: a -> Word32 -> IO (Initn_TargetsEnumerant_Ty a)
+
+class Get_TargetsField a where
+    type Get_TargetsField_Ty a :: *
+    getTargetsField :: a -> IO (Get_TargetsField_Ty a)
+
+class Set_TargetsField a where
+    type Set_TargetsField_Ty a :: *
+    setTargetsField :: a -> Set_TargetsField_Ty a -> IO ()
+
+class Init_TargetsField a where
+    type Init_TargetsField_Ty a :: *
+    initTargetsField :: a -> IO (Init_TargetsField_Ty a)
+
+class Initn_TargetsField a where
+    type Initn_TargetsField_Ty a :: *
+    initnTargetsField :: a -> Word32 -> IO (Initn_TargetsField_Ty a)
+
+class Get_TargetsFile a where
+    type Get_TargetsFile_Ty a :: *
+    getTargetsFile :: a -> IO (Get_TargetsFile_Ty a)
+
+class Set_TargetsFile a where
+    type Set_TargetsFile_Ty a :: *
+    setTargetsFile :: a -> Set_TargetsFile_Ty a -> IO ()
+
+class Init_TargetsFile a where
+    type Init_TargetsFile_Ty a :: *
+    initTargetsFile :: a -> IO (Init_TargetsFile_Ty a)
+
+class Initn_TargetsFile a where
+    type Initn_TargetsFile_Ty a :: *
+    initnTargetsFile :: a -> Word32 -> IO (Initn_TargetsFile_Ty a)
+
+class Get_TargetsGroup a where
+    type Get_TargetsGroup_Ty a :: *
+    getTargetsGroup :: a -> IO (Get_TargetsGroup_Ty a)
+
+class Set_TargetsGroup a where
+    type Set_TargetsGroup_Ty a :: *
+    setTargetsGroup :: a -> Set_TargetsGroup_Ty a -> IO ()
+
+class Init_TargetsGroup a where
+    type Init_TargetsGroup_Ty a :: *
+    initTargetsGroup :: a -> IO (Init_TargetsGroup_Ty a)
+
+class Initn_TargetsGroup a where
+    type Initn_TargetsGroup_Ty a :: *
+    initnTargetsGroup :: a -> Word32 -> IO (Initn_TargetsGroup_Ty a)
+
+class Get_TargetsInterface a where
+    type Get_TargetsInterface_Ty a :: *
+    getTargetsInterface :: a -> IO (Get_TargetsInterface_Ty a)
+
+class Set_TargetsInterface a where
+    type Set_TargetsInterface_Ty a :: *
+    setTargetsInterface :: a -> Set_TargetsInterface_Ty a -> IO ()
+
+class Init_TargetsInterface a where
+    type Init_TargetsInterface_Ty a :: *
+    initTargetsInterface :: a -> IO (Init_TargetsInterface_Ty a)
+
+class Initn_TargetsInterface a where
+    type Initn_TargetsInterface_Ty a :: *
+    initnTargetsInterface :: a -> Word32 -> IO (Initn_TargetsInterface_Ty a)
+
+class Get_TargetsMethod a where
+    type Get_TargetsMethod_Ty a :: *
+    getTargetsMethod :: a -> IO (Get_TargetsMethod_Ty a)
+
+class Set_TargetsMethod a where
+    type Set_TargetsMethod_Ty a :: *
+    setTargetsMethod :: a -> Set_TargetsMethod_Ty a -> IO ()
+
+class Init_TargetsMethod a where
+    type Init_TargetsMethod_Ty a :: *
+    initTargetsMethod :: a -> IO (Init_TargetsMethod_Ty a)
+
+class Initn_TargetsMethod a where
+    type Initn_TargetsMethod_Ty a :: *
+    initnTargetsMethod :: a -> Word32 -> IO (Initn_TargetsMethod_Ty a)
+
+class Get_TargetsParam a where
+    type Get_TargetsParam_Ty a :: *
+    getTargetsParam :: a -> IO (Get_TargetsParam_Ty a)
+
+class Set_TargetsParam a where
+    type Set_TargetsParam_Ty a :: *
+    setTargetsParam :: a -> Set_TargetsParam_Ty a -> IO ()
+
+class Init_TargetsParam a where
+    type Init_TargetsParam_Ty a :: *
+    initTargetsParam :: a -> IO (Init_TargetsParam_Ty a)
+
+class Initn_TargetsParam a where
+    type Initn_TargetsParam_Ty a :: *
+    initnTargetsParam :: a -> Word32 -> IO (Initn_TargetsParam_Ty a)
+
+class Get_TargetsStruct a where
+    type Get_TargetsStruct_Ty a :: *
+    getTargetsStruct :: a -> IO (Get_TargetsStruct_Ty a)
+
+class Set_TargetsStruct a where
+    type Set_TargetsStruct_Ty a :: *
+    setTargetsStruct :: a -> Set_TargetsStruct_Ty a -> IO ()
+
+class Init_TargetsStruct a where
+    type Init_TargetsStruct_Ty a :: *
+    initTargetsStruct :: a -> IO (Init_TargetsStruct_Ty a)
+
+class Initn_TargetsStruct a where
+    type Initn_TargetsStruct_Ty a :: *
+    initnTargetsStruct :: a -> Word32 -> IO (Initn_TargetsStruct_Ty a)
+
+class Get_TargetsUnion a where
+    type Get_TargetsUnion_Ty a :: *
+    getTargetsUnion :: a -> IO (Get_TargetsUnion_Ty a)
+
+class Set_TargetsUnion a where
+    type Set_TargetsUnion_Ty a :: *
+    setTargetsUnion :: a -> Set_TargetsUnion_Ty a -> IO ()
+
+class Init_TargetsUnion a where
+    type Init_TargetsUnion_Ty a :: *
+    initTargetsUnion :: a -> IO (Init_TargetsUnion_Ty a)
+
+class Initn_TargetsUnion a where
+    type Initn_TargetsUnion_Ty a :: *
+    initnTargetsUnion :: a -> Word32 -> IO (Initn_TargetsUnion_Ty a)
+
+class Get_Type a where
+    type Get_Type_Ty a :: *
+    getType :: a -> IO (Get_Type_Ty a)
+
+class Set_Type a where
+    type Set_Type_Ty a :: *
+    setType :: a -> Set_Type_Ty a -> IO ()
+
+class Init_Type a where
+    type Init_Type_Ty a :: *
+    initType :: a -> IO (Init_Type_Ty a)
+
+class Initn_Type a where
+    type Initn_Type_Ty a :: *
+    initnType :: a -> Word32 -> IO (Initn_Type_Ty a)
+
+class Get_TypeId a where
+    type Get_TypeId_Ty a :: *
+    getTypeId :: a -> IO (Get_TypeId_Ty a)
+
+class Set_TypeId a where
+    type Set_TypeId_Ty a :: *
+    setTypeId :: a -> Set_TypeId_Ty a -> IO ()
+
+class Init_TypeId a where
+    type Init_TypeId_Ty a :: *
+    initTypeId :: a -> IO (Init_TypeId_Ty a)
+
+class Initn_TypeId a where
+    type Initn_TypeId_Ty a :: *
+    initnTypeId :: a -> Word32 -> IO (Initn_TypeId_Ty a)
+
+class Get_Value a where
+    type Get_Value_Ty a :: *
+    getValue :: a -> IO (Get_Value_Ty a)
+
+class Set_Value a where
+    type Set_Value_Ty a :: *
+    setValue :: a -> Set_Value_Ty a -> IO ()
+
+class Init_Value a where
+    type Init_Value_Ty a :: *
+    initValue :: a -> IO (Init_Value_Ty a)
+
+class Initn_Value a where
+    type Initn_Value_Ty a :: *
+    initnValue :: a -> Word32 -> IO (Initn_Value_Ty a)
 
 
 

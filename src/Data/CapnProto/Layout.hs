@@ -1417,6 +1417,12 @@ class FromStructReader a where
 instance FromStructReader StructReader where
     fromStructReader = return
 
+class FromStructBuilder a where
+    fromStructBuilder :: StructBuilder -> IO a
+
+instance FromStructBuilder StructBuilder where
+    fromStructBuilder = return
+
 -----------------
 -- Reader Getters
 -----------------
@@ -1627,25 +1633,6 @@ getBuilderStructElement builder index =
     indexBit = fromIntegral index * fromIntegral (listBuilderStep builder) :: BitCount64
     structData = listBuilderData builder `plusPtr` (fromIntegral (indexBit `div` fromIntegral bitsPerByte)) :: Ptr Word8
     structPointers = structData `plusPtr` (fromIntegral (listBuilderStructDataSize builder `div` fromIntegral bitsPerByte))
-
-    {- pub fn get_struct_element(&self, index : ElementCount32) -> StructBuilder<'a> { -}
-        {- let index_bit = index * self.step; -}
-        {- let struct_data = unsafe{ self.ptr.offset((index_bit / BITS_PER_BYTE as u32) as isize)}; -}
-        {- let struct_pointers = unsafe { -}
-            {- ::std::mem::transmute( -}
-                {- struct_data.offset(((self.struct_data_size as usize) / BITS_PER_BYTE) as isize)) -}
-        {- }; -}
-        {- StructBuilder { -}
-            {- marker : ::std::marker::PhantomData::<&'a ()>, -}
-            {- segment : self.segment, -}
-            {- data : struct_data, -}
-            {- pointers : struct_pointers, -}
-            {- data_size : self.struct_data_size, -}
-            {- pointer_count : self.struct_pointer_count, -}
-        {- } -}
-    {- } -}
-
-
 
 getBuilderPointerElement :: ListBuilder a -> ElementCount32 -> PointerBuilder
 getBuilderPointerElement builder index =

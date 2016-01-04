@@ -16,12 +16,20 @@ import           Text.Show.Pretty      (ppShow)
 import qualified Data.CapnProto.Layout as L
 import           Data.CapnProto.Schema
 
+-- Notes
+--
+-- * Only provide setters for non-Void, slot fields (no groups).
+-- * Provide setters and initters for unions fields.
+--   * Setters include Void variants.
+--   * For AnyPointer variants, only provide initters.
+
 generateCode :: [Node] -> String
 generateCode schema =
     unlines [ prelude "Data.CapnProto.Schema.Generated"
             , unlines $ map renderStruct structs
             , unlines $ map renderEnum enums
-            , unlines (map mkClass nonUnionFieldNames)
+            --, unlines (map mkClass nonUnionFieldNames)
+            , unlines (map mkClass allFieldNames)
             , unlines [ def | struct <- structs
                             , field <- structNodeFields struct
                             , def <- maybeToList $ renderFieldDefault struct field ]
@@ -44,6 +52,9 @@ generateCode schema =
 
     allFields :: [Field]
     allFields = join $ map (sortBy (compare `on` fieldName) . structNodeFields) structs
+
+    allFieldNames :: [String]
+    allFieldNames = sort $ nub $ map fieldName allFields
 
     nonUnionFields :: [Field]
     nonUnionFields = filter (not . isUnionMember) allFields
@@ -123,9 +134,9 @@ renderFieldGetter k node (Field name _ _ _ kind _ ) =
                        TyStruct n _ -> "fmap "<>mkStructName n <> "_"<>k<>" $ "<>"L.get"<>k<>"Struct (L.get"<>k<>"PointerField struct "<>show offset<>")"<>structSize<>"nullPtr"
                        TyInterface{} -> "error \"not implemented\""
                        TyAnyPointer{} -> "return $ L.get"<>k<>"PointerField struct"<>show offset
-                       TyBool{} -> "L.get"<>k<>"BoolFieldMasked struct "<>show offset<>" "<>defaultValueTerm
-                       TyEnum{} -> "fmap (toEnum . fromIntegral) ("<>"L.get"<>k<>"NumericFieldMasked struct "<>show offset<>" "<>show defaultValueTerm<>" :: IO Word16)"
-                       _ -> "L.get"<>k<>"NumericFieldMasked struct "<>show offset<>" "<>defaultValueTerm
+                       TyBool{} -> "L.get"<>k<>"BoolFieldMasked struct "<>show offset<>" "<>defTerm
+                       TyEnum{} -> "fmap (toEnum . fromIntegral) ("<>"L.get"<>k<>"NumericFieldMasked struct "<>show offset<>" "<>defTerm<>" :: IO Word16)"
+                       _ -> "L.get"<>k<>"NumericFieldMasked struct "<>show offset<>" "<>defTerm
               else case ty of
                        TyVoid -> "return ()"
                        TyText{} -> "L.get"<>k<>"Text (L.get"<>k<>"PointerField struct "<>show offset<>") emptyString"
@@ -144,29 +155,64 @@ renderFieldGetter k node (Field name _ _ _ kind _ ) =
                 if k == "Reader"
                   then " "
                   else " (L.StructSize "<>show dataWords<>" "<>show pointers<>") "
-            defaultValueTerm =
-                case def of
-                    ValVoid -> "()"
-                    ValText val -> defName
-                    ValData val -> defName
-                    ValList val -> defName
-                    ValStruct val -> defName
-                    ValAnyPointer val -> defName
-                    ValInterface -> "()"
-                    ValBool val -> show val
-                    ValInt8 val -> show val
-                    ValInt16 val -> show val
-                    ValInt32 val -> show val
-                    ValInt64 val -> show val
-                    ValUInt8 val -> show val
-                    ValUInt16 val -> show val
-                    ValUInt32 val -> show val
-                    ValUInt64 val -> show val
-                    ValFloat32 val -> show val
-                    ValFloat64 val -> show val
-                    ValEnum val -> show val
-              where
-                defName = "default_"<>mkStructName node<>"_"<>name
+            defTerm = valueToDefaultTerm node name def
+
+renderFieldSetter :: String -> StructNode -> Field -> String
+renderFieldSetter k node field@(Field name _ _ _ kind _ ) =
+    case kind of
+        GroupField typeNode ->
+            "OOPS, IT LOOKS LIKE YOU SCREWED UP; NO SETTERS FOR GROUP FIELDS"
+        SlotField offset ty def explicitDefault ->
+            if explicitDefault
+              then case ty of
+                       TyVoid -> "return ()"
+                       TyText{} -> "L.setText (L.getBuilderPointerField struct "<>show offset<>") val"
+                       TyData{} -> "L.setData (L.getBuilderPointerField struct "<>show offset<>") val"
+                       TyList{} -> "L.setList (L.getBuilderPointerField struct "<>show offset<>") val"
+                       TyStruct n _ -> "L.setStruct (L.getBuilderPointerField struct "<>show offset<>") val"
+                       TyInterface{} -> "error \"not implemented\""
+                       TyAnyPointer{} -> "error \"THIS SHOULDN'T SHOW UP\"" -- can't set AnyPointer fields directly, only init them.
+                       TyBool{} -> "L.getBoolFieldMasked struct "<>show offset<>" "<>defTerm<>" val"
+                       TyEnum{} -> "L.setNumericFieldMasked struct "<>show offset<>" "<>defTerm<>" (fromIntegral . fromEnum $ val :: Word16)"
+                       _ -> "L.setNumericFieldMasked struct "<>show offset<>" "<>defTerm<>" val"
+              else case ty of
+                       TyVoid -> "return ()"
+                       TyText{} -> "L.setText (L.getBuilderPointerField struct "<>show offset<>") val"
+                       TyData{} -> "L.setData (L.getBuilderPointerField struct "<>show offset<>") val"
+                       TyList{} -> "L.setList (L.getBuilderPointerField struct "<>show offset<>") val"
+                       TyStruct n _ -> "L.setStruct (L.getBuilderPointerField struct "<>show offset<>") val"
+                       TyInterface{} -> "error \"not implemented\""
+                       TyAnyPointer{} -> "error \"THIS SHOULDN'T SHOW UP\"" -- can't set AnyPointer fields directly, only init them.
+                       TyBool{} -> "L.setBoolField struct "<>show offset<>" val"
+                       TyEnum{} -> "L.setNumericField struct "<>show offset<>" (fromIntegral . fromEnum $ val :: Word16)"
+                       _ -> "L.setNumericField struct "<>show offset<>" val"
+          where
+            defTerm = valueToDefaultTerm node name def
+
+valueToDefaultTerm :: StructNode -> String -> Value -> String
+valueToDefaultTerm node fieldName def =
+    case def of
+        ValVoid -> "()"
+        ValText val -> defName
+        ValData val -> defName
+        ValList val -> defName
+        ValStruct val -> defName
+        ValAnyPointer val -> defName
+        ValInterface -> "()"
+        ValBool val -> show val
+        ValInt8 val -> show val
+        ValInt16 val -> show val
+        ValInt32 val -> show val
+        ValInt64 val -> show val
+        ValUInt8 val -> show val
+        ValUInt16 val -> show val
+        ValUInt32 val -> show val
+        ValUInt64 val -> show val
+        ValFloat32 val -> show val
+        ValFloat64 val -> show val
+        ValEnum val -> show val
+  where
+    defName = "default_"<>mkStructName node<>"_"<>fieldName
 
 renderUnion :: StructNode -> String
 renderUnion node =
@@ -363,24 +409,55 @@ mkData node =
 
 mkClass :: String -> String
 mkClass field =
-    unlines [ "class Has"<>capField<>" a where"
-            , "    type "<>capField<>"Ty a :: *"
-            , "    get"<>capField<>" :: a -> IO ("<>capField<>"Ty a)"
+    unlines [ "class Get_"<>capField<>" a where"
+            , "    type Get_"<>capField<>"_Ty a :: *"
+            , "    get"<>capField<>" :: a -> IO (Get_"<>capField<>"_Ty a)"
+            , ""
+            , "class Has_"<>capField<>" a where"
+            , "    has"<>capField<>" :: a -> IO Bool"
+            , ""
+            , "class Set_"<>capField<>" a where"
+            , "    type Set_"<>capField<>"_Ty a :: *"
+            , "    set"<>capField<>" :: a -> Set_"<>capField<>"_Ty a -> IO ()"
+            , ""
+            , "class Init_"<>capField<>" a where"
+            , "    type Init_"<>capField<>"_Ty a :: *"
+            , "    init"<>capField<>" :: a -> IO (Init_"<>capField<>"_Ty a)"
+            , ""
+            , "class Initn_"<>capField<>" a where"
+            , "    type Initn_"<>capField<>"_Ty a :: *"
+            , "    initn"<>capField<>" :: a -> Word32 -> IO (L.ListBuilder (Initn_"<>capField<>"_Ty a))"
             ]
   where
     capField = capitalize field
 
 renderField :: StructNode -> Field -> String
 renderField node field@(Field name _ _ _ kind _) =
-    unlines [ "instance Has"<>capField<>" "<>readerName<>" where"
-            , "    type "<>capField<>"Ty "<>readerName<>" = "<>fieldToHsType "Reader" field
+    unlines [ "instance Get_"<>capField<>" "<>readerName<>" where"
+            , "    type Get_"<>capField<>"_Ty "<>readerName<>" = "<>fieldToHsType "Reader" field
             , "    get"<>capField<>" ("<>readerName<>" struct) = "<>renderFieldGetter "Reader" node field
             , ""
-            , "instance Has"<>capField<>" "<>builderName<>" where"
-            , "    type "<>capField<>"Ty "<>builderName<>" = "<>fieldToHsType "Builder" field
+            , "instance Get_"<>capField<>" "<>builderName<>" where"
+            , "    type Get_"<>capField<>"_Ty "<>builderName<>" = "<>fieldToHsType "Builder" field
             , "    get"<>capField<>" ("<>builderName<>" struct) = "<>renderFieldGetter "Builder" node field
+            , ""
+            , "instance Set_"<>capField<>" "<>builderName<>" where"
+            , "    type Set_"<>capField<>"_Ty "<>builderName<>" = "<>fieldToHsType "Builder" field
+            , "    set"<>capField<>" ("<>builderName<>" struct) "<>destructureVal<>" = "<>renderFieldSetter "Builder" node field
             ]
   where
+    isGroup = structNodeIsGroup node
+    isUnionField = structNodeIsGroup node
     capField = capitalize name
     readerName = mkStructName node<>"_Reader"
     builderName = mkStructName node<>"_Builder"
+    destructureVal =
+        case kind of
+            GroupField typeNode -> "("<>mkStructName typeNode<>"_Reader val)"
+            SlotField offset ty def explicitDefault ->
+              case ty of
+                  TyText{} -> "(L.DataReader val)"
+                  TyData{} -> "(L.TextReader val)"
+                  TyStruct n _ -> "("<>mkStructName n<>"_Reader val)"
+                  _ -> "val"
+
