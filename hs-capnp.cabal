@@ -31,6 +31,7 @@ library
     , bytestring
     , unordered-containers
     , containers
+    , dynamic-mvector
 
   exposed-modules:
     Data.CapnProto.Arena

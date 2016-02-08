@@ -22,6 +22,7 @@ let
     haskell-generate
     haskell-src-exts
     haskell-src-exts-qq
+    dynamic-mvector
 
     hspec
   ]);

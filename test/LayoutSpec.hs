@@ -142,15 +142,15 @@ spec = do
 
         it "text" $ do
             struct <- readStruct "test-data/one_text"
-            text <- L.getReaderTextField struct 0 ""
+            L.TextReader text <- L.getReaderText (L.getReaderPointerField struct 0) ""
 
-            L.textReaderData text `shouldBe` "This is some text."
+            text `shouldBe` "This is some text."
 
         it "data" $ do
             struct <- readStruct "test-data/one_data"
-            text <- L.getReaderDataField struct 0 ""
+            L.DataReader text <- L.getReaderData (L.getReaderPointerField struct 0) ""
 
-            L.dataReaderData text `shouldBe` "This is some data."
+            text `shouldBe` "This is some data."
 
         it "mixed" $ do
             struct <- readStruct "test-data/mixed"

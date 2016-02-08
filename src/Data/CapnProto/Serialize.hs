@@ -13,10 +13,6 @@ import           Data.CapnProto.Arena
 import           Data.CapnProto.Layout    as L
 import           Data.CapnProto.Units
 
-data MessageReader = MessageReader
-  { messageReaderArena :: ReaderArena
-  }
-
 readHandle :: Handle -> IO MessageReader
 readHandle handle =
     readMessage get
@@ -57,7 +53,7 @@ readSegmentTable read = do
 
 getRoot :: FromStructReader a => MessageReader -> IO a
 getRoot (MessageReader arena) = do
-    segment <- segmentReaderGetFirstSegment arena
+    let segment = readerArenaSegment0 arena
     withSegmentReader segment $ \ptr -> do
         pointerReader <- L.getRoot segment (unsafeSegmentReaderPtr segment)
         struct <- getReaderStruct pointerReader nullPtr

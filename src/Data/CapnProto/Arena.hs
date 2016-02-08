@@ -1,5 +1,6 @@
 {-# LANGUAGE LambdaCase   #-}
 {-# LANGUAGE TypeFamilies #-}
+{-# LANGUAGE ExistentialQuantification #-}
 
 module Data.CapnProto.Arena where
 
@@ -15,8 +16,48 @@ import           Foreign.Marshal.Array     hiding (newArray)
 import           Foreign.Ptr
 import           System.IO.Unsafe          (unsafeDupablePerformIO,
                                             unsafePerformIO)
+import qualified Data.Vector.Mutable.Dynamic as VMD
+import qualified Data.Vector.Mutable         as VM
+import qualified Data.Vector                 as V
 
 import           Data.CapnProto.Units
+
+--------------------------------------------------------------------------------
+
+data MessageReader = MessageReader
+  { messageReaderArena :: ReaderArena
+  }
+
+data MessageBuilder = MessageBuilder
+  { messageBuilderArena     :: BuilderArena
+  , messageBuilderAllocator :: SomeAllocator
+  }
+
+class Allocator a where
+    allocateSegment :: a -> Word32 -> IO (ForeignPtr CPWord, Word32)
+
+data SomeAllocator = forall a. Allocator a => SomeAllocator a
+
+data HeapAllocator = HeapAllocator
+  { heapAllocatorNextSize :: IORef Word32
+  , heapAllocatorMemory   :: VMD.IOVector (ForeignPtr CPWord)
+  , heapAllocatorStrategy :: AllocationStrategy
+  }
+
+instance Allocator HeapAllocator where
+    allocateSegment allocator minSize = do
+        prevSize <- readIORef (heapAllocatorNextSize allocator)
+        let size = max minSize prevSize
+        newWords <- mallocForeignPtrBytes (fromIntegral $ size * fromIntegral bytesPerWord)
+        VMD.pushBack (heapAllocatorMemory allocator) newWords
+        when (heapAllocatorStrategy allocator == GrowHeuristically) $
+            writeIORef (heapAllocatorNextSize allocator) (prevSize + size)
+        return (newWords, size)
+
+newHeapAllocator :: Word32 -> AllocationStrategy -> IO HeapAllocator
+newHeapAllocator firstSegmentSize strategy =
+    HeapAllocator <$> newIORef firstSegmentSize <*> VMD.new 1 <*> return strategy
+
 
 --------------------------------------------------------------------------------
 
@@ -126,29 +167,36 @@ data Arena
     = AReader ReaderArena
     | ABuilder BuilderArena
 
+--  raw_segments: &'static ReaderSegments,
+--  pub segment0: SegmentReader,
+--  pub more_segments: HashMap<SegmentId, Box<SegmentReader>>,
 data ReaderArena = ReaderArena
-  { readerArenaMoreSegments :: IORef [SegmentReader] -- segments are lazily allocated, so this is mutable.
+  { readerArenaSegment0     :: SegmentReader
+  , readerArenaMoreSegments :: VMD.IOVector SegmentReader -- segments are lazily allocated, so this is mutable.
   }
 
 data BuilderArena = BuilderArena
-  { builderArenaMoreSegments       :: IORef [SegmentBuilder]
-  , builderArenaAllocationStrategy :: AllocationStrategy
-  , builderArenaNextSize           :: IORef Word32
+  { builderArenaAllocator          :: SomeAllocator
+  , builderArenaSegment0           :: SegmentBuilder
+  , builderArenaMoreSegments       :: VMD.IOVector SegmentBuilder
   }
 
 data AllocationStrategy
   = FixedSize
   | GrowHeuristically
+  deriving (Eq)
 
 nullArenaReader :: ReaderArena
 nullArenaReader =
-    ReaderArena (unsafePerformIO $ newIORef [nullSegmentReader])
+    ReaderArena nullSegmentReader (unsafePerformIO $ VMD.new 0)
 
-nullArenaBuilder :: BuilderArena
-nullArenaBuilder =
-    BuilderArena (unsafePerformIO $ newIORef [nullSegmentBuilder])
-          FixedSize
-          (unsafePerformIO $ newIORef 0)
+-- TODO: do I need these?
+--nullArenaBuilder :: BuilderArena
+--nullArenaBuilder =
+--    --BuilderArena (unsafePerformIO $ newIORef [nullSegmentBuilder])
+--    BuilderArena (unsafePerformIO $ VMD.new 0)
+--          FixedSize
+--          (unsafePerformIO $ VMD.new 0)
 
 allocateSegmentBuilder :: BuilderArena -> Int -> IO SegmentBuilder
 allocateSegmentBuilder arena numWords = do
@@ -172,55 +220,40 @@ segmentCurrentSize segment = do
     pos <- readIORef . segmentBuilderPos $ segment
     return $ fromIntegral $ (pos `minusPtr` unsafeSegmentBuilderPtr segment) `div` bytesPerWord
 
-appendSegment :: BuilderArena -> SegmentBuilder -> IO ()
-appendSegment arena segment = do
-    segments <- readIORef . builderArenaMoreSegments $ arena
-    writeIORef (builderArenaMoreSegments arena) (segments ++ [ segment ])
-
-numSegments :: BuilderArena -> IO Int
-numSegments arena = length <$> readIORef (builderArenaMoreSegments arena)
-
-segmentReaderGetFirstSegment :: ReaderArena -> IO SegmentReader
-segmentReaderGetFirstSegment arena = head <$> readIORef (readerArenaMoreSegments arena)
-
 segmentBuilderGetFirstSegment :: BuilderArena -> IO SegmentBuilder
-segmentBuilderGetFirstSegment arena = head <$> readIORef (builderArenaMoreSegments arena)
-
-getLastSegment :: BuilderArena -> IO SegmentBuilder
-getLastSegment arena = last <$> readIORef (builderArenaMoreSegments arena)
+segmentBuilderGetFirstSegment arena = VMD.readFront (builderArenaMoreSegments arena)
 
 arenaAllocate :: BuilderArena -> WordCount32 -> IO (SegmentBuilder, Ptr CPWord)
-arenaAllocate arena amount = do
-    segment <- getLastSegment arena
-    segmentAllocate segment amount >>= \case
-        Just result -> return (segment, result)
+arenaAllocate arena amount =
+    segmentAllocate (builderArenaSegment0 arena) amount >>= \case
+        Just result -> return (builderArenaSegment0 arena, result)
         Nothing -> do
-            id <- fromIntegral <$> numSegments arena
-            (fptr, size) <- allocateOwnedMemory arena amount
-            let ptr = castPtr $ unsafeForeignPtrToPtr fptr
-            pos <- newIORef ptr
-            let segment = SegmentBuilder (SegmentReader (ABuilder arena) fptr ptr size) id pos
-            appendSegment arena segment
-            return (segment, ptr)
+            len <- VMD.length (builderArenaMoreSegments arena)
+            if len == 0
+              then allocateViaAllocator 1 (builderArenaAllocator arena)
+              else do
+                  segBuilder <- VMD.unsafeRead (builderArenaMoreSegments arena) (len - 1)
+                  segmentAllocate segBuilder amount >>= \case
+                      Just words -> return (segBuilder, words)
+                      Nothing    -> allocateViaAllocator (fromIntegral len+1) (builderArenaAllocator arena)
   where
-    allocateOwnedMemory :: BuilderArena -> WordCount32 -> IO (ForeignPtr Word8, WordCount32)
-    allocateOwnedMemory arena minSize = do
-        nextSize <- readIORef (builderArenaNextSize arena)
-        let size = max minSize nextSize
-        let sizeInBytes = fromIntegral size * bytesPerWord
-        fptr <- mallocForeignPtrBytes $ sizeInBytes
-        case builderArenaAllocationStrategy arena of
-            GrowHeuristically ->
-              void $ writeIORef (builderArenaNextSize arena) (nextSize + size)
-            _ ->
-              return ()
-        return (fptr, size)
+    allocateViaAllocator :: SegmentId -> SomeAllocator -> IO (SegmentBuilder, Ptr CPWord)
+    allocateViaAllocator id (SomeAllocator allocator) = do
+        (words, size) <- allocateSegment allocator amount
+        wordsRef <- newIORef (unsafeForeignPtrToPtr words)
+        let builder = SegmentBuilder (SegmentReader (ABuilder arena) (castForeignPtr words) (unsafeForeignPtrToPtr words) size) (fromIntegral id) wordsRef
+        VMD.pushBack (builderArenaMoreSegments arena) builder
+        segmentAllocate builder amount >>= \case
+            Just words -> return (builder, words)
+            Nothing ->
+                -- Shouldn't happen; the allocator should provide enough space.
+                fail "the impossible happened"
 
 -- XXX
 arenaFromByteStrings :: [BS.ByteString] -> ReaderArena
 arenaFromByteStrings strs = arena
   where
-    arena = ReaderArena (unsafePerformIO $ newIORef segments)
+    arena = ReaderArena (head segments) (unsafePerformIO $ VMD.unsafeThaw $ V.fromList $ tail segments)
     segments = map segmentFromByteString strs
     segmentFromByteString str =
         let (fptr, offset, len) = toForeignPtr str
@@ -234,18 +267,24 @@ arenaFromByteStrings strs = arena
         in segmentReader
 
 readerArenaGetSegment :: ReaderArena -> SegmentId -> IO SegmentReader
-readerArenaGetSegment arena id = do
-    segments <- readIORef $ readerArenaMoreSegments arena
-    case segments `at` fromIntegral id of
-        Left err -> fail $ "Invalid segment id: "<>err
-        Right res -> return res
+readerArenaGetSegment arena id =
+    if id == 0
+      then return (readerArenaSegment0 arena)
+      else do
+          len <- (VMD.length (readerArenaMoreSegments arena))
+          if fromIntegral len >= id - 1
+                 then VMD.unsafeRead (readerArenaMoreSegments arena) (fromIntegral (id - 1))
+                 else fail $ "Invalid segment id: " <> show id
 
 builderArenaGetSegment :: BuilderArena -> SegmentId -> IO SegmentBuilder
-builderArenaGetSegment arena id = do
-    segments <- readIORef $ builderArenaMoreSegments arena
-    case segments `at` fromIntegral id of
-        Left err -> fail $ "Invalid segment id: "<>err
-        Right res -> return res
+builderArenaGetSegment arena id =
+    if id == 0
+      then return (builderArenaSegment0 arena)
+      else do
+          len <- (VMD.length (builderArenaMoreSegments arena))
+          if fromIntegral len >= id - 1
+                 then VMD.unsafeRead (builderArenaMoreSegments arena) (fromIntegral (id - 1))
+                 else fail $ "Invalid segment id: " <> show id
 
 arenaGetSegment :: Arena -> SegmentId -> IO SegmentReader
 arenaGetSegment arena id =
