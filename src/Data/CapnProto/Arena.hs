@@ -1,24 +1,24 @@
-{-# LANGUAGE LambdaCase   #-}
-{-# LANGUAGE TypeFamilies #-}
 {-# LANGUAGE ExistentialQuantification #-}
+{-# LANGUAGE LambdaCase                #-}
+{-# LANGUAGE TypeFamilies              #-}
 
 module Data.CapnProto.Arena where
 
 import           Control.Monad
-import qualified Data.ByteString           as BS
-import           Data.ByteString.Internal  (toForeignPtr)
+import qualified Data.ByteString             as BS
+import           Data.ByteString.Internal    (toForeignPtr)
 import           Data.IORef
 import           Data.Monoid
+import qualified Data.Vector                 as V
+import qualified Data.Vector.Mutable         as VM
+import qualified Data.Vector.Mutable.Dynamic as VMD
 import           Data.Word
 import           Foreign.ForeignPtr
 import           Foreign.ForeignPtr.Unsafe
-import           Foreign.Marshal.Array     hiding (newArray)
+import           Foreign.Marshal.Array       hiding (newArray)
 import           Foreign.Ptr
-import           System.IO.Unsafe          (unsafeDupablePerformIO,
-                                            unsafePerformIO)
-import qualified Data.Vector.Mutable.Dynamic as VMD
-import qualified Data.Vector.Mutable         as VM
-import qualified Data.Vector                 as V
+import           System.IO.Unsafe            (unsafeDupablePerformIO,
+                                              unsafePerformIO)
 
 import           Data.CapnProto.Units
 
@@ -32,6 +32,10 @@ data MessageBuilder = MessageBuilder
   { messageBuilderArena     :: BuilderArena
   , messageBuilderAllocator :: SomeAllocator
   }
+
+messageBuilderGetSegmentsForOutput :: MessageBuilder -> IO (V.Vector (ForeignPtr Word8, WordCount32))
+messageBuilderGetSegmentsForOutput =
+    builderArenaGetSegmentsForOutput . messageBuilderArena
 
 class Allocator a where
     allocateSegment :: a -> Word32 -> IO (ForeignPtr CPWord, Word32)
@@ -96,6 +100,18 @@ instance Nullable (SegmentBuilder) where
 instance AsReader SegmentBuilder where
     type ReaderTy SegmentBuilder = SegmentReader
     asReader = segmentBuilderSegmentReader
+
+builderArenaGetSegmentsForOutput :: forall s. BuilderArena -> IO (V.Vector (ForeignPtr Word8, WordCount32))
+builderArenaGetSegmentsForOutput arena = do
+    segments <- VMD.unsafeFreeze (builderArenaMoreSegments arena)
+    return $ V.create $ do
+        v <- VM.new (V.length segments + 1)
+        _ <- VM.write v 0 (toWords (builderArenaSegment0 arena))
+        _ <- V.imapM_ (\idx segBuilder -> VM.write v (idx+1) (toWords segBuilder)) segments
+        return v
+  where
+    toWords segBuilder =
+        (segmentReaderForeignPtr (segmentBuilderSegmentReader segBuilder), segmentBuilderSize segBuilder)
 
 segmentBuilderGetArena :: SegmentBuilder -> BuilderArena
 segmentBuilderGetArena segment =
@@ -176,9 +192,9 @@ data ReaderArena = ReaderArena
   }
 
 data BuilderArena = BuilderArena
-  { builderArenaAllocator          :: SomeAllocator
-  , builderArenaSegment0           :: SegmentBuilder
-  , builderArenaMoreSegments       :: VMD.IOVector SegmentBuilder
+  { builderArenaAllocator    :: SomeAllocator
+  , builderArenaSegment0     :: SegmentBuilder
+  , builderArenaMoreSegments :: VMD.IOVector SegmentBuilder
   }
 
 data AllocationStrategy
@@ -220,8 +236,8 @@ segmentCurrentSize segment = do
     pos <- readIORef . segmentBuilderPos $ segment
     return $ fromIntegral $ (pos `minusPtr` unsafeSegmentBuilderPtr segment) `div` bytesPerWord
 
-segmentBuilderGetFirstSegment :: BuilderArena -> IO SegmentBuilder
-segmentBuilderGetFirstSegment arena = VMD.readFront (builderArenaMoreSegments arena)
+builderArenaGetFirstSegment :: BuilderArena -> IO SegmentBuilder
+builderArenaGetFirstSegment arena = VMD.readFront (builderArenaMoreSegments arena)
 
 arenaAllocate :: BuilderArena -> WordCount32 -> IO (SegmentBuilder, Ptr CPWord)
 arenaAllocate arena amount =

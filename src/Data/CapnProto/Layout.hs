@@ -3,10 +3,10 @@
 {-# LANGUAGE FlexibleContexts      #-}
 {-# LANGUAGE FlexibleInstances     #-}
 {-# LANGUAGE LambdaCase            #-}
+{-# LANGUAGE MagicHash             #-}
 {-# LANGUAGE MultiParamTypeClasses #-}
 {-# LANGUAGE OverloadedStrings     #-}
 {-# LANGUAGE TypeFamilies          #-}
-{-# LANGUAGE MagicHash             #-}
 
 module Data.CapnProto.Layout where
 
